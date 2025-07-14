@@ -21,30 +21,66 @@ class EDINETClient {
      */
     async searchCompany(companyName) {
         try {
-            // 最近3か月の書類から企業を検索
+            // 過去8年間の書類から企業を検索（5年分の財務データ取得のため）
             const currentDate = new Date();
             const searchDates = [];
             
-            // 過去3か月分の月末日を生成
-            for (let i = 0; i < 3; i++) {
-                const date = new Date(currentDate);
-                date.setMonth(date.getMonth() - i);
-                const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-                searchDates.push(lastDay.toISOString().split('T')[0]);
+            // 過去8年分の年度末（3月末）と中間（6月末、9月末、12月末）を生成
+            for (let year = 0; year < 8; year++) {
+                const targetYear = currentDate.getFullYear() - year;
+                
+                // 各年度の主要な報告時期を追加
+                const fiscalYearDates = [
+                    `${targetYear}-03-31`,     // 年度末（有価証券報告書）
+                    `${targetYear}-06-30`,     // 第1四半期
+                    `${targetYear}-09-30`,     // 第2四半期（中間報告）
+                    `${targetYear}-12-31`,     // 第3四半期
+                    `${targetYear + 1}-06-30`, // 翌年度第1四半期（前年度の有価証券報告書提出時期）
+                ];
+                
+                searchDates.push(...fiscalYearDates);
             }
 
+            console.log(`企業検索: ${companyName} - ${searchDates.length}日分の書類を検索中...`);
+            
             const companies = new Map();
+            let searchCount = 0;
+            const maxSearches = 24; // 最大24回の検索（適度な制限）
 
             for (const date of searchDates) {
+                if (searchCount >= maxSearches && companies.size > 0) {
+                    console.log(`企業が見つかったため検索を終了: ${companies.size}社`);
+                    break;
+                }
+                
                 try {
+                    searchCount++;
+                    console.log(`検索中 (${searchCount}/${Math.min(maxSearches, searchDates.length)}): ${date}`);
+                    
                     const documents = await this.getDocumentList(date);
+                    
+                    if (!documents || !documents.results) {
+                        console.warn(`${date}: 書類データなし`);
+                        continue;
+                    }
+                    
                     const reports = this.filterFinancialReports(documents);
                     
-                    // 企業名で検索
-                    const matchedReports = reports.filter(report => 
-                        report.filerName.includes(companyName) ||
-                        report.submitterName?.includes(companyName)
-                    );
+                    // 企業名で検索（部分一致、大文字小文字を区別しない）
+                    const matchedReports = reports.filter(report => {
+                        const filerName = report.filerName || '';
+                        const submitterName = report.submitterName || '';
+                        const companyNameLower = companyName.toLowerCase();
+                        
+                        return filerName.toLowerCase().includes(companyNameLower) ||
+                               submitterName.toLowerCase().includes(companyNameLower) ||
+                               filerName.includes(companyName) ||
+                               submitterName.includes(companyName);
+                    });
+
+                    if (matchedReports.length > 0) {
+                        console.log(`${date}: ${matchedReports.length}件の一致企業を発見`);
+                    }
 
                     matchedReports.forEach(report => {
                         companies.set(report.edinetCode, {
@@ -52,18 +88,33 @@ class EDINETClient {
                             filerName: report.filerName,
                             submitterName: report.submitterName,
                             securitiesCode: report.securitiesCode,
-                            jcn: report.jcn
+                            jcn: report.jcn,
+                            lastFoundDate: date
                         });
                     });
 
-                    if (companies.size > 0) break; // 見つかったら早期終了
+                    // 早期終了条件を緩和（より多くの企業を見つけるため）
+                    if (companies.size >= 5) {
+                        console.log(`十分な企業が見つかったため検索を終了: ${companies.size}社`);
+                        break;
+                    }
+                    
                 } catch (error) {
                     console.warn(`日付 ${date} での検索エラー:`, error.message);
+                    // 検索を続行
                 }
             }
 
-            return Array.from(companies.values());
+            const result = Array.from(companies.values());
+            console.log(`企業検索完了: ${result.length}社見つかりました`);
+            
+            if (result.length === 0) {
+                console.warn(`「${companyName}」に一致する企業が見つかりませんでした。検索した期間: 過去8年`);
+            }
+
+            return result;
         } catch (error) {
+            console.error(`企業検索エラー:`, error);
             throw new Error(`企業検索エラー: ${error.message}`);
         }
     }
@@ -285,6 +336,8 @@ class EDINETClient {
     async getMultiYearData(edinetCode, years) {
         const results = [];
         
+        console.log(`複数年データ取得開始: ${edinetCode} - ${years.length}年分`);
+        
         for (const year of years) {
             try {
                 console.log(`${year}年度データ取得中...`);
@@ -296,7 +349,9 @@ class EDINETClient {
                     data: yearData
                 });
                 
-                // レート制限対応
+                console.log(`${year}年度データ取得完了`);
+                
+                // レート制限対応（1秒待機）
                 await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error) {
                 console.error(`${year}年度データ取得エラー:`, error.message);
@@ -307,6 +362,7 @@ class EDINETClient {
             }
         }
         
+        console.log(`複数年データ取得完了: ${results.filter(r => r.data).length}/${years.length}年分成功`);
         return results;
     }
 
@@ -317,48 +373,82 @@ class EDINETClient {
      * @returns {Promise<Object>} 財務データ
      */
     async getYearlyFinancialData(edinetCode, year) {
-        // 年度末日を計算（通常は3月末）
-        const fiscalYearEnd = `${parseInt(year) + 1}-03-31`;
+        console.log(`${year}年度の財務データ取得開始: ${edinetCode}`);
         
-        // 書類一覧を取得（年度末前後の期間を検索）
-        const startDate = `${year}-01-01`;
-        const endDate = `${parseInt(year) + 1}-12-31`;
+        // 有価証券報告書の提出時期を考慮した検索日程
+        const baseYear = parseInt(year);
+        const searchDates = [
+            // 翌年の有価証券報告書提出時期（3月決算企業）
+            `${baseYear + 1}-06-30`,  // 6月末提出
+            `${baseYear + 1}-06-29`,  // 6月末前日
+            `${baseYear + 1}-05-31`,  // 5月末提出
+            `${baseYear + 1}-07-31`,  // 7月末提出
+            
+            // 当年度の四半期報告書
+            `${baseYear}-12-31`,      // 第3四半期
+            `${baseYear}-09-30`,      // 第2四半期
+            `${baseYear}-06-30`,      // 第1四半期
+            `${baseYear}-03-31`,      // 年度末
+            
+            // 広範囲検索（月末日）
+            ...this.generateMonthlySearchDates(baseYear, baseYear + 1)
+        ];
         
-        // 複数日にわたって検索
-        const searchDates = this.generateSearchDates(startDate, endDate);
+        console.log(`検索対象期間: ${searchDates.length}日分`);
         
         for (const date of searchDates) {
             try {
+                await this.rateLimiter.throttle();
+                
                 const documents = await this.getDocumentList(date);
+                
+                if (!documents || !documents.results) {
+                    continue;
+                }
+                
                 const reports = this.filterFinancialReports(documents);
                 
                 // 指定したEDINETコードの報告書を探す
                 const targetReport = reports.find(report => 
                     report.edinetCode === edinetCode &&
-                    report.formCode === '030000' // 有価証券報告書
+                    (report.formCode === '030000' || report.formCode === '043000') // 有価証券報告書または四半期報告書
                 );
                 
                 if (targetReport) {
-                    const xbrlData = await this.getXBRLData(targetReport.docID);
-                    const parsedData = await this.parseXBRL(xbrlData);
-                    const financialData = this.extractFinancialData(parsedData);
+                    console.log(`${year}年度の書類発見: ${targetReport.docDescription} (${date})`);
                     
-                    return {
-                        ...financialData,
-                        metadata: {
-                            docID: targetReport.docID,
-                            filerName: targetReport.filerName,
-                            submitDate: targetReport.submitDate,
-                            docDescription: targetReport.docDescription
-                        }
-                    };
+                    try {
+                        const xbrlData = await this.getXBRLData(targetReport.docID);
+                        const parsedData = await this.parseXBRL(xbrlData);
+                        const financialData = this.extractFinancialData(parsedData);
+                        
+                        console.log(`${year}年度の財務データ解析完了`);
+                        
+                        return {
+                            ...financialData,
+                            metadata: {
+                                docID: targetReport.docID,
+                                filerName: targetReport.filerName,
+                                submitDate: targetReport.submitDate,
+                                docDescription: targetReport.docDescription,
+                                formCode: targetReport.formCode,
+                                foundDate: date
+                            }
+                        };
+                    } catch (parseError) {
+                        console.warn(`${year}年度 書類解析エラー:`, parseError.message);
+                        // 解析エラーの場合は次の書類を探す
+                        continue;
+                    }
                 }
             } catch (error) {
-                console.warn(`日付 ${date} での検索エラー:`, error.message);
+                console.warn(`${year}年度 日付 ${date} での検索エラー:`, error.message);
+                // 検索エラーの場合は次の日付を試す
+                continue;
             }
         }
         
-        throw new Error(`${year}年度の財務データが見つかりませんでした`);
+        throw new Error(`${year}年度の財務データが見つかりませんでした（検索期間: ${searchDates.length}日分）`);
     }
 
     /**
@@ -385,6 +475,26 @@ class EDINETClient {
         }
         
         return dates;
+    }
+
+    /**
+     * 月末検索日付を生成（年度範囲指定）
+     * @param {number} startYear - 開始年度
+     * @param {number} endYear - 終了年度
+     * @returns {Array<string>} 月末日付配列
+     */
+    generateMonthlySearchDates(startYear, endYear) {
+        const dates = [];
+        
+        for (let year = startYear; year <= endYear; year++) {
+            // 各月の月末日を生成
+            for (let month = 1; month <= 12; month++) {
+                const monthEnd = new Date(year, month, 0);
+                dates.push(monthEnd.toISOString().split('T')[0]);
+            }
+        }
+        
+        return dates.sort((a, b) => new Date(b) - new Date(a)); // 新しい日付から古い日付へソート
     }
 }
 
