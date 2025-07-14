@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テスト仕様書</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: #fff;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .breadcrumb {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .breadcrumb a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        
+        .content {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #34495e;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin: 20px 0 10px 0;
+        }
+        
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #9b59b6;
+        }
+        
+        .meta-info {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        
+        .meta-info p {
+            margin: 5px 0;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status-planning {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .status-writing {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .status-executing {
+            background-color: #9b59b6;
+            color: white;
+        }
+        
+        .status-completed {
+            background-color: #27ae60;
+            color: white;
+        }
+        
+        .status-failed {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #34495e;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .test-case {
+            background-color: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .test-case h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .test-details {
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .test-details p {
+            margin: 5px 0;
+        }
+        
+        .priority-high {
+            border-left: 4px solid #e74c3c;
+        }
+        
+        .priority-medium {
+            border-left: 4px solid #f39c12;
+        }
+        
+        .priority-low {
+            border-left: 4px solid #27ae60;
+        }
+        
+        .code-block {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .test-coverage {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        
+        .coverage-item {
+            text-align: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            min-width: 120px;
+        }
+        
+        .coverage-percent {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .coverage-label {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="breadcrumb">
+                <a href="index.html">ダッシュボード</a> > テスト仕様書
+            </div>
+            <h1>テスト仕様書</h1>
+            <div class="meta-info">
+                <p><strong>バージョン:</strong> 1.0.0</p>
+                <p><strong>最終更新:</strong> <span id="lastUpdated"></span></p>
+                <p><strong>ステータス:</strong> <span class="status-badge status-planning">計画中</span></p>
+            </div>
+        </header>
+        
+        <div class="content">
+            <h2>1. テスト戦略</h2>
+            <p>本プロジェクトでは、品質を保証するために段階的なテスト戦略を採用します。各レベルでのテストを実施し、継続的インテグレーション環境での自動テストを基本とします。</p>
+            
+            <h2>2. テストレベル</h2>
+            <div class="test-section">
+                <h3>2.1 単体テスト (Unit Tests)</h3>
+                <table>
+                    <tr>
+                        <th>項目</th>
+                        <th>内容</th>
+                        <th>ツール</th>
+                        <th>カバレッジ目標</th>
+                    </tr>
+                    <tr>
+                        <td>対象</td>
+                        <td>個別の関数・コンポーネント</td>
+                        <td>Jest, React Testing Library</td>
+                        <td>80%以上</td>
+                    </tr>
+                    <tr>
+                        <td>実行タイミング</td>
+                        <td>コード変更時</td>
+                        <td>自動実行</td>
+                        <td>-</td>
+                    </tr>
+                </table>
+                
+                <h3>2.2 統合テスト (Integration Tests)</h3>
+                <table>
+                    <tr>
+                        <th>項目</th>
+                        <th>内容</th>
+                        <th>ツール</th>
+                        <th>カバレッジ目標</th>
+                    </tr>
+                    <tr>
+                        <td>対象</td>
+                        <td>コンポーネント間の連携</td>
+                        <td>Jest, Supertest</td>
+                        <td>70%以上</td>
+                    </tr>
+                    <tr>
+                        <td>実行タイミング</td>
+                        <td>プルリクエスト時</td>
+                        <td>GitHub Actions</td>
+                        <td>-</td>
+                    </tr>
+                </table>
+                
+                <h3>2.3 E2Eテスト (End-to-End Tests)</h3>
+                <table>
+                    <tr>
+                        <th>項目</th>
+                        <th>内容</th>
+                        <th>ツール</th>
+                        <th>カバレッジ目標</th>
+                    </tr>
+                    <tr>
+                        <td>対象</td>
+                        <td>ユーザーシナリオ全体</td>
+                        <td>Cypress, Playwright</td>
+                        <td>主要フロー100%</td>
+                    </tr>
+                    <tr>
+                        <td>実行タイミング</td>
+                        <td>デプロイ前</td>
+                        <td>ステージング環境</td>
+                        <td>-</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <h2>3. テストカバレッジ</h2>
+            <div class="test-coverage">
+                <div class="coverage-item">
+                    <div class="coverage-percent">0%</div>
+                    <div class="coverage-label">単体テスト</div>
+                </div>
+                <div class="coverage-item">
+                    <div class="coverage-percent">0%</div>
+                    <div class="coverage-label">統合テスト</div>
+                </div>
+                <div class="coverage-item">
+                    <div class="coverage-percent">0%</div>
+                    <div class="coverage-label">E2Eテスト</div>
+                </div>
+                <div class="coverage-item">
+                    <div class="coverage-percent">0%</div>
+                    <div class="coverage-label">全体</div>
+                </div>
+            </div>
+            
+            <h2>4. テストケース</h2>
+            
+            <h3>4.1 認証機能テスト</h3>
+            <div class="test-case priority-high">
+                <h4>TC001: ログイン機能テスト</h4>
+                <div class="test-details">
+                    <p><strong>目的:</strong> ユーザーが正常にログインできることを確認</p>
+                    <p><strong>前提条件:</strong> 有効なユーザーアカウントが存在する</p>
+                    <p><strong>手順:</strong></p>
+                    <ol>
+                        <li>ログインページにアクセス</li>
+                        <li>有効なメールアドレスとパスワードを入力</li>
+                        <li>ログインボタンをクリック</li>
+                    </ol>
+                    <p><strong>期待結果:</strong> ダッシュボードページにリダイレクトされる</p>
+                    <p><strong>ステータス:</strong> <span class="status-badge status-planning">計画中</span></p>
+                </div>
+            </div>
+            
+            <div class="test-case priority-high">
+                <h4>TC002: ログイン失敗テスト</h4>
+                <div class="test-details">
+                    <p><strong>目的:</strong> 無効な認証情報でのログイン失敗を確認</p>
+                    <p><strong>前提条件:</strong> ログインページが表示されている</p>
+                    <p><strong>手順:</strong></p>
+                    <ol>
+                        <li>無効なメールアドレスまたはパスワードを入力</li>
+                        <li>ログインボタンをクリック</li>
+                    </ol>
+                    <p><strong>期待結果:</strong> エラーメッセージが表示される</p>
+                    <p><strong>ステータス:</strong> <span class="status-badge status-planning">計画中</span></p>
+                </div>
+            </div>
+            
+            <h3>4.2 データ管理機能テスト</h3>
+            <div class="test-case priority-medium">
+                <h4>TC003: データ作成テスト</h4>
+                <div class="test-details">
+                    <p><strong>目的:</strong> 新規データの作成機能を確認</p>
+                    <p><strong>前提条件:</strong> ユーザーがログイン済み</p>
+                    <p><strong>手順:</strong></p>
+                    <ol>
+                        <li>データ作成ページにアクセス</li>
+                        <li>必要な情報を入力</li>
+                        <li>保存ボタンをクリック</li>
+                    </ol>
+                    <p><strong>期待結果:</strong> データが正常に保存され、一覧に表示される</p>
+                    <p><strong>ステータス:</strong> <span class="status-badge status-planning">計画中</span></p>
+                </div>
+            </div>
+            
+            <h2>5. テスト環境</h2>
+            <div class="test-section">
+                <h3>5.1 テスト実行環境</h3>
+                <table>
+                    <tr>
+                        <th>環境</th>
+                        <th>用途</th>
+                        <th>URL</th>
+                        <th>データ</th>
+                    </tr>
+                    <tr>
+                        <td>ローカル</td>
+                        <td>開発者テスト</td>
+                        <td>http://localhost:3000</td>
+                        <td>モックデータ</td>
+                    </tr>
+                    <tr>
+                        <td>ステージング</td>
+                        <td>統合・E2Eテスト</td>
+                        <td>未設定</td>
+                        <td>テストデータ</td>
+                    </tr>
+                    <tr>
+                        <td>本番</td>
+                        <td>本番監視</td>
+                        <td>未設定</td>
+                        <td>本番データ</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <h2>6. テストデータ管理</h2>
+            <div class="test-section">
+                <h3>6.1 テストデータ格納場所</h3>
+                <div class="code-block">
+test/data/
+├── users.json          # ユーザーテストデータ
+├── auth.json           # 認証テストデータ
+├── mock-responses/     # APIモックレスポンス
+└── fixtures/           # テスト用ファイル
+                </div>
+                
+                <h3>6.2 データ作成・クリーンアップ</h3>
+                <ul>
+                    <li>テスト実行前: 必要なテストデータを自動生成</li>
+                    <li>テスト実行後: テストデータを自動削除</li>
+                    <li>データベース: 各テスト実行時にリセット</li>
+                </ul>
+            </div>
+            
+            <h2>7. 自動テスト実行</h2>
+            <div class="test-section">
+                <h3>7.1 CI/CDパイプライン</h3>
+                <div class="code-block">
+# .github/workflows/test.yml
+name: Test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm install
+      - name: Run unit tests
+        run: npm run test:unit
+      - name: Run integration tests
+        run: npm run test:integration
+      - name: Run E2E tests
+        run: npm run test:e2e
+                </div>
+            </div>
+            
+            <h2>8. テスト報告</h2>
+            <div class="test-section">
+                <h3>8.1 レポート生成</h3>
+                <ul>
+                    <li>テスト結果の自動集計</li>
+                    <li>カバレッジレポートの生成</li>
+                    <li>テスト失敗時の詳細ログ出力</li>
+                    <li>PR毎のテスト結果コメント</li>
+                </ul>
+                
+                <h3>8.2 品質基準</h3>
+                <ul>
+                    <li>全テストケースの成功</li>
+                    <li>コードカバレッジ80%以上</li>
+                    <li>E2Eテストの主要シナリオ100%成功</li>
+                    <li>パフォーマンステストの基準値クリア</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 最終更新日時の設定
+        function updateLastModified() {
+            const now = new Date();
+            const formatted = now.toLocaleString('ja-JP', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('lastUpdated').textContent = formatted;
+        }
+        
+        updateLastModified();
+    </script>
+</body>
+</html>

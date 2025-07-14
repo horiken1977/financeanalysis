@@ -1,0 +1,61 @@
+{
+  "name": "financeanalysis",
+  "version": "1.0.0",
+  "description": "Finance Analysis Application with development dashboard and automated documentation",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:e2e": "cypress run",
+    "test:watch": "jest --watch",
+    "docs:serve": "http-server docs -p 8080",
+    "docs:build": "echo 'Building documentation...'",
+    "auto-save": "./test/scripts/chat-auto-save.sh",
+    "auto-save:start": "nohup ./test/scripts/chat-auto-save.sh &",
+    "auto-save:stop": "pkill -f chat-auto-save.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/horiken1977/financeanalysis.git"
+  },
+  "keywords": [
+    "finance",
+    "analysis",
+    "dashboard",
+    "documentation",
+    "automation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "axios": "^1.6.0",
+    "chart.js": "^4.4.0",
+    "react-chartjs-2": "^5.2.0",
+    "date-fns": "^2.30.0",
+    "xml2js": "^0.6.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "jest": "^29.0.0",
+    "cypress": "^13.0.0",
+    "http-server": "^14.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}

@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>環境設計書</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: #fff;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .breadcrumb {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .breadcrumb a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        
+        .content {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #34495e;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin: 20px 0 10px 0;
+        }
+        
+        .env-section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #27ae60;
+        }
+        
+        .meta-info {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        
+        .meta-info p {
+            margin: 5px 0;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status-setup {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .status-planned {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .status-completed {
+            background-color: #27ae60;
+            color: white;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #34495e;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .code-block {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .folder-structure {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+        }
+        
+        .folder-structure .folder {
+            color: #f39c12;
+            font-weight: bold;
+        }
+        
+        .folder-structure .file {
+            color: #2c3e50;
+        }
+        
+        .deployment-flow {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .deployment-step {
+            text-align: center;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 120px;
+        }
+        
+        .deployment-arrow {
+            font-size: 20px;
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="breadcrumb">
+                <a href="index.html">ダッシュボード</a> > 環境設計書
+            </div>
+            <h1>環境設計書</h1>
+            <div class="meta-info">
+                <p><strong>バージョン:</strong> 1.0.0</p>
+                <p><strong>最終更新:</strong> <span id="lastUpdated"></span></p>
+                <p><strong>ステータス:</strong> <span class="status-badge status-setup">構築中</span></p>
+            </div>
+        </header>
+        
+        <div class="content">
+            <h2>1. システム構成概要</h2>
+            <p>本プロジェクトは、モダンなウェブアプリケーションとして設計され、クラウドネイティブなアーキテクチャを採用しています。</p>
+            
+            <h2>2. プロジェクト構造</h2>
+            <div class="folder-structure">
+financeanalysis/
+├── <span class="folder">docs/</span>                  # ドキュメント類
+│   ├── <span class="file">index.html</span>          # 開発ダッシュボード
+│   ├── <span class="file">functional-spec.html</span> # 機能設計書
+│   ├── <span class="file">environment-spec.html</span> # 環境設計書
+│   ├── <span class="file">test-spec.html</span>       # テスト仕様書
+│   └── <span class="file">auto-update.js</span>       # 自動更新スクリプト
+├── <span class="folder">test/</span>                  # テスト関連
+│   ├── <span class="folder">scripts/</span>           # テストスクリプト
+│   └── <span class="folder">data/</span>              # テストデータ
+├── <span class="folder">src/</span>                   # ソースコード
+├── <span class="folder">public/</span>                # 静的ファイル
+├── <span class="file">package.json</span>             # 依存関係定義
+├── <span class="file">vercel.json</span>              # Vercel設定
+├── <span class="file">claude.md</span>                # Claude Code設定
+└── <span class="file">README.md</span>                # プロジェクト説明
+            </div>
+            
+            <h2>3. 開発環境</h2>
+            <div class="env-section">
+                <h3>3.1 ローカル開発環境</h3>
+                <table>
+                    <tr>
+                        <th>項目</th>
+                        <th>技術/ツール</th>
+                        <th>バージョン</th>
+                        <th>ステータス</th>
+                    </tr>
+                    <tr>
+                        <td>OS</td>
+                        <td>macOS</td>
+                        <td>14.5.0</td>
+                        <td><span class="status-badge status-completed">完了</span></td>
+                    </tr>
+                    <tr>
+                        <td>Node.js</td>
+                        <td>Node.js</td>
+                        <td>LTS</td>
+                        <td><span class="status-badge status-planned">計画中</span></td>
+                    </tr>
+                    <tr>
+                        <td>パッケージマネージャー</td>
+                        <td>npm/yarn</td>
+                        <td>最新</td>
+                        <td><span class="status-badge status-planned">計画中</span></td>
+                    </tr>
+                    <tr>
+                        <td>IDE</td>
+                        <td>Claude Code</td>
+                        <td>最新</td>
+                        <td><span class="status-badge status-completed">完了</span></td>
+                    </tr>
+                    <tr>
+                        <td>バージョン管理</td>
+                        <td>Git</td>
+                        <td>最新</td>
+                        <td><span class="status-badge status-planned">計画中</span></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <h2>4. 本番環境</h2>
+            <div class="env-section">
+                <h3>4.1 ホスティング</h3>
+                <table>
+                    <tr>
+                        <th>環境</th>
+                        <th>プラットフォーム</th>
+                        <th>URL</th>
+                        <th>ステータス</th>
+                    </tr>
+                    <tr>
+                        <td>本番環境</td>
+                        <td>Vercel</td>
+                        <td>未設定</td>
+                        <td><span class="status-badge status-planned">計画中</span></td>
+                    </tr>
+                    <tr>
+                        <td>ドキュメント</td>
+                        <td>GitHub Pages</td>
+                        <td>未設定</td>
+                        <td><span class="status-badge status-planned">計画中</span></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <h2>5. デプロイメントフロー</h2>
+            <div class="deployment-flow">
+                <div class="deployment-step">
+                    <strong>開発</strong><br>
+                    ローカル環境
+                </div>
+                <span class="deployment-arrow">→</span>
+                <div class="deployment-step">
+                    <strong>コミット</strong><br>
+                    GitHub
+                </div>
+                <span class="deployment-arrow">→</span>
+                <div class="deployment-step">
+                    <strong>CI/CD</strong><br>
+                    GitHub Actions
+                </div>
+                <span class="deployment-arrow">→</span>
+                <div class="deployment-step">
+                    <strong>デプロイ</strong><br>
+                    Vercel
+                </div>
+            </div>
+            
+            <h2>6. 自動化ツール</h2>
+            <div class="env-section">
+                <h3>6.1 開発支援ツール</h3>
+                <ul>
+                    <li><strong>自動ドキュメント更新:</strong> Claude Codeとのチャット内容から自動的にドキュメントを更新</li>
+                    <li><strong>定期保存:</strong> 2時間毎のチャット履歴自動保存</li>
+                    <li><strong>進捗追跡:</strong> リアルタイムでの開発進捗可視化</li>
+                    <li><strong>テスト自動化:</strong> CI/CDパイプラインでの自動テスト実行</li>
+                </ul>
+                
+                <h3>6.2 設定ファイル</h3>
+                <div class="code-block">
+# claude.md - Claude Code設定
+## 自動保存設定
+- 保存間隔: 2時間
+- 保存先: docs/chat-history/
+- 通知: ターミナル表示
+
+## テスト実行コマンド
+npm test
+
+## ビルドコマンド
+npm run build
+
+## デプロイコマンド
+vercel --prod
+                </div>
+            </div>
+            
+            <h2>7. セキュリティ設定</h2>
+            <div class="env-section">
+                <h3>7.1 環境変数管理</h3>
+                <ul>
+                    <li>本番環境の機密情報はVercelの環境変数設定で管理</li>
+                    <li>開発環境では.env.localファイルを使用（.gitignoreに追加）</li>
+                    <li>APIキーやデータベース接続情報は環境変数で管理</li>
+                </ul>
+                
+                <h3>7.2 アクセス制御</h3>
+                <ul>
+                    <li>GitHub リポジトリのアクセス権限設定</li>
+                    <li>Vercelプロジェクトのアクセス制御</li>
+                    <li>ドキュメントの公開範囲設定</li>
+                </ul>
+            </div>
+            
+            <h2>8. 監視・ログ</h2>
+            <div class="env-section">
+                <h3>8.1 監視設定</h3>
+                <ul>
+                    <li>Vercel Analytics での性能監視</li>
+                    <li>GitHub Actions でのビルド状況監視</li>
+                    <li>アプリケーションエラーの追跡</li>
+                </ul>
+                
+                <h3>8.2 ログ管理</h3>
+                <ul>
+                    <li>アプリケーションログの収集と分析</li>
+                    <li>デプロイメントログの保存</li>
+                    <li>チャット履歴の定期バックアップ</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 最終更新日時の設定
+        function updateLastModified() {
+            const now = new Date();
+            const formatted = now.toLocaleString('ja-JP', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('lastUpdated').textContent = formatted;
+        }
+        
+        updateLastModified();
+    </script>
+</body>
+</html>

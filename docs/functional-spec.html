@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>機能設計書</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: #fff;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .breadcrumb {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .breadcrumb a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        
+        .content {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #34495e;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin: 20px 0 10px 0;
+        }
+        
+        .feature-section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .feature-list {
+            list-style-type: none;
+            margin: 15px 0;
+        }
+        
+        .feature-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status-planned {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .status-in-progress {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .status-completed {
+            background-color: #27ae60;
+            color: white;
+        }
+        
+        .meta-info {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        
+        .meta-info p {
+            margin: 5px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #34495e;
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .api-endpoint {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        
+        .code-block {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="breadcrumb">
+                <a href="index.html">ダッシュボード</a> > 機能設計書
+            </div>
+            <h1>機能設計書</h1>
+            <div class="meta-info">
+                <p><strong>バージョン:</strong> 1.0.0</p>
+                <p><strong>最終更新:</strong> <span id="lastUpdated"></span></p>
+                <p><strong>ステータス:</strong> <span class="status-badge status-planned">計画中</span></p>
+            </div>
+        </header>
+        
+        <div class="content">
+            <h2>1. 概要</h2>
+            <p>本ドキュメントは、アプリケーションの機能設計について記載します。各機能の詳細、実装方法、および依存関係を定義します。</p>
+            
+            <h2>2. 機能一覧</h2>
+            <div class="feature-section">
+                <h3>2.1 コア機能</h3>
+                <ul class="feature-list">
+                    <li>
+                        <strong>認証・認可システム</strong>
+                        <span class="status-badge status-planned">計画中</span>
+                        <p>ユーザーのログイン、ログアウト、権限管理を行います。</p>
+                    </li>
+                    <li>
+                        <strong>データ管理機能</strong>
+                        <span class="status-badge status-planned">計画中</span>
+                        <p>アプリケーションのコアデータの作成、読取、更新、削除を行います。</p>
+                    </li>
+                    <li>
+                        <strong>レポート生成機能</strong>
+                        <span class="status-badge status-planned">計画中</span>
+                        <p>データを基にした各種レポートの生成と出力を行います。</p>
+                    </li>
+                </ul>
+            </div>
+            
+            <h2>3. 機能詳細</h2>
+            
+            <h3>3.1 認証・認可システム</h3>
+            <table>
+                <tr>
+                    <th>項目</th>
+                    <th>内容</th>
+                </tr>
+                <tr>
+                    <td>目的</td>
+                    <td>セキュアなユーザー認証と権限管理</td>
+                </tr>
+                <tr>
+                    <td>対象ユーザー</td>
+                    <td>全ユーザー</td>
+                </tr>
+                <tr>
+                    <td>技術スタック</td>
+                    <td>JWT、OAuth 2.0</td>
+                </tr>
+                <tr>
+                    <td>優先度</td>
+                    <td>高</td>
+                </tr>
+            </table>
+            
+            <h4>APIエンドポイント</h4>
+            <div class="api-endpoint">
+                POST /api/auth/login
+                POST /api/auth/logout
+                POST /api/auth/refresh
+                GET  /api/auth/profile
+            </div>
+            
+            <h3>3.2 データ管理機能</h3>
+            <table>
+                <tr>
+                    <th>項目</th>
+                    <th>内容</th>
+                </tr>
+                <tr>
+                    <td>目的</td>
+                    <td>効率的なデータの管理と操作</td>
+                </tr>
+                <tr>
+                    <td>対象ユーザー</td>
+                    <td>認証済みユーザー</td>
+                </tr>
+                <tr>
+                    <td>技術スタック</td>
+                    <td>RESTful API、GraphQL（検討中）</td>
+                </tr>
+                <tr>
+                    <td>優先度</td>
+                    <td>高</td>
+                </tr>
+            </table>
+            
+            <h2>4. 非機能要件</h2>
+            <div class="feature-section">
+                <h3>4.1 パフォーマンス要件</h3>
+                <ul>
+                    <li>レスポンス時間: 95%のリクエストが200ms以内</li>
+                    <li>同時接続数: 最大1000ユーザー</li>
+                    <li>可用性: 99.9%以上</li>
+                </ul>
+                
+                <h3>4.2 セキュリティ要件</h3>
+                <ul>
+                    <li>全通信のHTTPS化</li>
+                    <li>定期的なセキュリティ監査</li>
+                    <li>OWASP Top 10への対策</li>
+                </ul>
+            </div>
+            
+            <h2>5. 今後の追加予定機能</h2>
+            <p>以下の機能は、今後のバージョンで追加を検討しています：</p>
+            <ul>
+                <li>リアルタイム通知機能</li>
+                <li>外部サービス連携</li>
+                <li>高度な分析機能</li>
+                <li>モバイルアプリケーション対応</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        // 最終更新日時の設定
+        function updateLastModified() {
+            const now = new Date();
+            const formatted = now.toLocaleString('ja-JP', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('lastUpdated').textContent = formatted;
+        }
+        
+        updateLastModified();
+    </script>
+</body>
+</html>
