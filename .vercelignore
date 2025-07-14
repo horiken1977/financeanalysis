@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+
+# Testing
+coverage/
+.nyc_output
+
+# Next.js build output
+.next/
+out/
+
+# Production build files
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation (deployed separately via GitHub Pages)
+docs/
+
+# Chat history (sensitive)
+docs/chat-history/
+
+# Test files
+test/
+*.test.js
+*.spec.js
+
+# API documentation
+api/docs/
+
+# Development scripts
+test/scripts/chat-auto-save.sh

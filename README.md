@@ -45,21 +45,31 @@ http://localhost:3000 でアプリケーションにアクセスできます。
 
 ## Vercelデプロイ
 
-### 1. Vercelプロジェクトの作成
+### 自動デプロイ
+このプロジェクトはGitHub Actionsを使用した自動デプロイに対応しています。
 
+1. **GitHub Secretsの設定**
+   - `VERCEL_TOKEN`: Vercel Personal Access Token
+   - `VERCEL_ORG_ID`: Vercel Organization ID
+   - `VERCEL_PROJECT_ID`: Vercel Project ID
+   - `EDINET_API_KEY`: EDINET API キー
+
+2. **環境変数の設定（Vercelダッシュボード）**
+   - `EDINET_API_KEY`: EDINET API キー
+
+3. **自動デプロイ**
+   - `main`ブランチへのプッシュで自動デプロイ
+   - プルリクエストで自動プレビューデプロイ
+
+詳細な設定方法は [vercel-setup.md](vercel-setup.md) を参照してください。
+
+### 手動デプロイ
 ```bash
-vercel
-```
+# 初回セットアップ
+vercel login
+vercel link
 
-### 2. 環境変数の設定
-
-Vercelダッシュボードで以下の環境変数を設定してください：
-
-- `EDINET_API_KEY`: EDINET API キー
-
-### 3. デプロイ
-
-```bash
+# プロダクションデプロイ
 vercel --prod
 ```
 
