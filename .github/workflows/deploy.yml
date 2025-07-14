@@ -21,11 +21,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
       - name: Update documentation timestamps
         run: |
           # Update last modified timestamps in HTML files
@@ -33,6 +28,8 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          enablement: true
 
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v3
@@ -75,6 +72,8 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./
           vercel-args: '--prod'
+          github-comment: false
+          github-deployment: false
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
 

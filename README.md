@@ -51,8 +51,8 @@ http://localhost:3000 でアプリケーションにアクセスできます。
 - **環境変数**: 設定済み
 
 ### 🔗 アプリケーションURL
-- **メインアプリ**: [Vercel（自動更新）](https://financeanalysis.vercel.app)
-- **開発ドキュメント**: [GitHub Pages](https://horiken1977.github.io/financeanalysis/)
+- **🚀 財務分析アプリ**: [https://financeanalysis-horiken1977-horikens-projects.vercel.app](https://financeanalysis-horiken1977-horikens-projects.vercel.app)
+- **📚 開発ドキュメント**: [GitHub Pages](https://horiken1977.github.io/financeanalysis/)
 
 ### 📋 デプロイ方法
 1. **自動デプロイ**: コードをプッシュ → 自動でVercelにデプロイ

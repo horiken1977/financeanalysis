@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "financeanalysis",
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
