@@ -43,33 +43,26 @@ npm run dev
 
 http://localhost:3000 でアプリケーションにアクセスできます。
 
-## Vercelデプロイ
+## 🚀 デプロイ状況
 
-### 自動デプロイ
-このプロジェクトはGitHub Actionsを使用した自動デプロイに対応しています。
+### ✅ 自動デプロイ設定完了
+- **GitHub Actions**: 有効
+- **Vercel連携**: 設定済み  
+- **環境変数**: 設定済み
 
-1. **GitHub Secretsの設定**
-   - `VERCEL_TOKEN`: Vercel Personal Access Token
-   - `VERCEL_ORG_ID`: Vercel Organization ID
-   - `VERCEL_PROJECT_ID`: Vercel Project ID
-   - `EDINET_API_KEY`: EDINET API キー
+### 🔗 アプリケーションURL
+- **メインアプリ**: [Vercel（自動更新）](https://financeanalysis.vercel.app)
+- **開発ドキュメント**: [GitHub Pages](https://horiken1977.github.io/financeanalysis/)
 
-2. **環境変数の設定（Vercelダッシュボード）**
-   - `EDINET_API_KEY`: EDINET API キー
+### 📋 デプロイ方法
+1. **自動デプロイ**: コードをプッシュ → 自動でVercelにデプロイ
+2. **デプロイ状況確認**: [GitHub Actions](https://github.com/horiken1977/financeanalysis/actions)
 
-3. **自動デプロイ**
-   - `main`ブランチへのプッシュで自動デプロイ
-   - プルリクエストで自動プレビューデプロイ
-
+### 🔧 設定詳細
 詳細な設定方法は [vercel-setup.md](vercel-setup.md) を参照してください。
 
-### 手動デプロイ
+### 手動デプロイ（必要時のみ）
 ```bash
-# 初回セットアップ
-vercel login
-vercel link
-
-# プロダクションデプロイ
 vercel --prod
 ```
 
