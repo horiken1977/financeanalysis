@@ -10,14 +10,19 @@ import FinancialChart from '../components/FinancialChart';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 export default function Home() {
-    const [searchResults, setSearchResults] = useState(null);
+    const [companies, setCompanies] = useState(null);
+    const [selectedCompany, setSelectedCompany] = useState(null);
+    const [financialData, setFinancialData] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [loadingFinancial, setLoadingFinancial] = useState(false);
     const [error, setError] = useState(null);
 
     const handleSearch = async (companyName) => {
         setLoading(true);
         setError(null);
-        setSearchResults(null);
+        setCompanies(null);
+        setSelectedCompany(null);
+        setFinancialData(null);
 
         try {
             const response = await fetch('/api/search-company', {
@@ -34,11 +39,50 @@ export default function Home() {
             }
 
             const data = await response.json();
-            setSearchResults(data);
+            setCompanies(data.companies);
+            
+            // 企業が1社のみの場合は自動的に選択
+            if (data.companies.length === 1) {
+                await handleCompanySelect(data.companies[0]);
+            }
         } catch (err) {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCompanySelect = async (company) => {
+        setSelectedCompany(company);
+        setLoadingFinancial(true);
+        setError(null);
+
+        try {
+            const currentYear = new Date().getFullYear();
+            const years = Array.from({length: 5}, (_, i) => currentYear - 1 - i);
+
+            const response = await fetch('/api/get-financial-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    edinetCode: company.edinetCode,
+                    years: years 
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || '財務データの取得に失敗しました');
+            }
+
+            const data = await response.json();
+            setFinancialData(data);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoadingFinancial(false);
         }
     };
 
@@ -93,8 +137,53 @@ export default function Home() {
                     </div>
                 )}
 
-                {/* 検索結果 */}
-                {searchResults && (
+                {/* 企業検索結果 */}
+                {companies && companies.length > 0 && (
+                    <div className="bg-white rounded-lg shadow p-6 mb-8">
+                        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                            検索結果: {companies.length}社
+                        </h2>
+                        <div className="space-y-2">
+                            {companies.map((company) => (
+                                <button
+                                    key={company.edinetCode}
+                                    onClick={() => handleCompanySelect(company)}
+                                    className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                                        selectedCompany?.edinetCode === company.edinetCode
+                                            ? 'border-blue-500 bg-blue-50'
+                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium text-gray-900">{company.filerName}</p>
+                                            <p className="text-sm text-gray-500">
+                                                EDINETコード: {company.edinetCode}
+                                                {company.securitiesCode && ` | 証券コード: ${company.securitiesCode}`}
+                                            </p>
+                                        </div>
+                                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 財務データ読み込み中 */}
+                {loadingFinancial && (
+                    <div className="bg-white rounded-lg shadow p-6 mb-8">
+                        <div className="flex items-center justify-center py-8">
+                            <LoadingSpinner />
+                            <span className="ml-3 text-gray-600">財務データを取得中...</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* 財務データ表示 */}
+                {financialData && selectedCompany && (
                     <div className="space-y-8">
                         {/* 企業情報 */}
                         <div className="bg-white rounded-lg shadow p-6">
@@ -104,16 +193,16 @@ export default function Home() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <span className="text-sm font-medium text-gray-500">企業名:</span>
-                                    <p className="text-lg text-gray-900">{searchResults.company.filerName}</p>
+                                    <p className="text-lg text-gray-900">{selectedCompany.filerName}</p>
                                 </div>
                                 <div>
                                     <span className="text-sm font-medium text-gray-500">EDINETコード:</span>
-                                    <p className="text-lg text-gray-900">{searchResults.company.edinetCode}</p>
+                                    <p className="text-lg text-gray-900">{selectedCompany.edinetCode}</p>
                                 </div>
-                                {searchResults.company.securitiesCode && (
+                                {selectedCompany.securitiesCode && (
                                     <div>
                                         <span className="text-sm font-medium text-gray-500">証券コード:</span>
-                                        <p className="text-lg text-gray-900">{searchResults.company.securitiesCode}</p>
+                                        <p className="text-lg text-gray-900">{selectedCompany.securitiesCode}</p>
                                     </div>
                                 )}
                             </div>
@@ -124,7 +213,7 @@ export default function Home() {
                             <h2 className="text-xl font-semibold text-gray-900 mb-4">
                                 財務データ（直近5年分）
                             </h2>
-                            <FinancialDataTable data={searchResults.data} years={searchResults.years} />
+                            <FinancialDataTable data={financialData.data} years={financialData.years} />
                         </div>
 
                         {/* 財務グラフ */}
@@ -132,7 +221,7 @@ export default function Home() {
                             <h2 className="text-xl font-semibold text-gray-900 mb-4">
                                 財務推移グラフ
                             </h2>
-                            <FinancialChart data={searchResults.data} years={searchResults.years} />
+                            <FinancialChart data={financialData.data} years={financialData.years} />
                         </div>
                     </div>
                 )}

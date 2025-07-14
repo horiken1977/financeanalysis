@@ -1,6 +1,6 @@
 /**
- * 企業検索API
- * 企業名から直近5年分のBS/PLデータを取得
+ * 企業検索API（高速版）
+ * 企業名検索のみを行い、候補企業をすぐに返す
  */
 
 import EDINETClient from '../../lib/edinet-client';
@@ -24,24 +24,20 @@ export default async function handler(req, res) {
     try {
         const client = new EDINETClient(apiKey);
         
-        // 1. 企業を検索
+        // 企業を検索（高速版）
+        console.log(`API: 企業検索開始 - ${companyName}`);
         const companies = await client.searchCompany(companyName);
         
         if (companies.length === 0) {
             return res.status(404).json({ error: '該当する企業が見つかりません' });
         }
 
-        // 2. 最初にヒットした企業の直近5年分のデータを取得
-        const targetCompany = companies[0];
-        const currentYear = new Date().getFullYear();
-        const years = Array.from({length: 5}, (_, i) => currentYear - 1 - i); // 直近5年
-
-        const financialData = await client.getMultiYearData(targetCompany.edinetCode, years);
-
+        console.log(`API: ${companies.length}社の企業が見つかりました`);
+        
+        // 企業候補をすぐに返す（財務データは別途取得）
         return res.status(200).json({
-            company: targetCompany,
-            years: years,
-            data: financialData
+            companies: companies,
+            message: `${companies.length}社の企業が見つかりました`
         });
 
     } catch (error) {
