@@ -1,0 +1,2 @@
+# financeanalysis
+EDINET APIを介して財務部席を行うApplication
