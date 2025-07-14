@@ -4,16 +4,13 @@
   "builds": [
     {
       "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "docs"
-      }
+      "use": "@vercel/next"
     }
   ],
   "routes": [
     {
-      "src": "/",
-      "dest": "/docs/index.html"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
       "src": "/docs/(.*)",
@@ -21,7 +18,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/docs/$1"
+      "dest": "/$1"
     }
   ],
   "headers": [
