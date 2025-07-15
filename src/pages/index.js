@@ -321,7 +321,11 @@ export default function Home() {
                                     <div className="mt-1 text-sm text-red-700">
                                         <p>{envStatus.error}</p>
                                         {envStatus.details && (
-                                            <p className="text-xs mt-1">詳細: {envStatus.details}</p>
+                                            <p className="text-xs mt-1">詳細: {
+                                                typeof envStatus.details === 'string' 
+                                                    ? envStatus.details 
+                                                    : JSON.stringify(envStatus.details)
+                                            }</p>
                                         )}
                                     </div>
                                 )}
@@ -373,11 +377,18 @@ export default function Home() {
                                         {connectionStatus.errorCode && (
                                             <p><span className="font-semibold">エラーコード:</span> {connectionStatus.errorCode}</p>
                                         )}
-                                        <p><span className="font-semibold">詳細:</span> {connectionStatus.details}</p>
-                                        {connectionStatus.success && connectionStatus.details && (
+                                        <p><span className="font-semibold">詳細:</span> {
+                                            typeof connectionStatus.details === 'string' 
+                                                ? connectionStatus.details 
+                                                : JSON.stringify(connectionStatus.details)
+                                        }</p>
+                                        {connectionStatus.success && connectionStatus.details && typeof connectionStatus.details === 'object' && (
                                             <div className="mt-1">
-                                                <p><span className="font-semibold">テスト日付:</span> {connectionStatus.details.testDate}</p>
-                                                <p><span className="font-semibold">取得書類数:</span> {connectionStatus.details.documentsFound}件</p>
+                                                <p><span className="font-semibold">テスト日付:</span> {connectionStatus.details.testDate || 'N/A'}</p>
+                                                <p><span className="font-semibold">取得書類数:</span> {connectionStatus.details.documentsFound || 0}件</p>
+                                                {connectionStatus.details.apiEndpoint && (
+                                                    <p><span className="font-semibold">エンドポイント:</span> {connectionStatus.details.apiEndpoint}</p>
+                                                )}
                                             </div>
                                         )}
                                         {connectionStatus.suggestion && (

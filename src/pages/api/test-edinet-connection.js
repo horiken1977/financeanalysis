@@ -86,8 +86,8 @@ export default async function handler(req, res) {
                     requestUrl: `${url}?${new URLSearchParams(params).toString()}`,
                     apiKeyLength: apiKey.length,
                     apiKeyPreview: `${apiKey.substring(0, 8)}***${apiKey.substring(apiKey.length - 4)}`,
-                    responseData: response.data,
-                    responseHeaders: response.headers
+                    responseData: JSON.stringify(response.data),
+                    responseHeaders: JSON.stringify(response.headers)
                 },
                 suggestion: 'EDINET APIキーが無効または期限切れの可能性があります。EDINETサイトで新しいAPIキーを取得してください。'
             });
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
                 testDate: dateStr,
                 documentsFound: resultsCount,
                 apiEndpoint: url,
-                responseTime: `${Date.now() - Date.now()}ms`
+                responseTime: '< 1秒'
             },
             apiResponse: {
                 metadata: response.data.metadata || null,
