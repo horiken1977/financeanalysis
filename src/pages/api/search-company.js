@@ -29,7 +29,10 @@ export default async function handler(req, res) {
         const companies = await client.searchCompany(companyName);
         
         if (companies.length === 0) {
-            return res.status(404).json({ error: '該当する企業が見つかりません' });
+            return res.status(404).json({ 
+                error: '該当する企業が見つかりません',
+                suggestion: 'EDINET APIキーが正しく設定されているか確認してください。企業名は正式名称または一般的な略称で検索してください。'
+            });
         }
 
         console.log(`API: ${companies.length}社の企業が見つかりました`);
@@ -42,6 +45,16 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('企業検索エラー:', error);
+        
+        // 認証エラーの場合は特別なメッセージを返す
+        if (error.message.includes('認証エラー')) {
+            return res.status(401).json({ 
+                error: 'EDINET API認証エラー',
+                details: 'APIキーが無効か設定されていません。環境変数EDINET_API_KEYを確認してください。',
+                instruction: 'Vercelの環境変数設定でEDINET_API_KEYを正しく設定してください。'
+            });
+        }
+        
         return res.status(500).json({ 
             error: 'データ取得中にエラーが発生しました',
             details: error.message 

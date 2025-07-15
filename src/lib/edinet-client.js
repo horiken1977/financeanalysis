@@ -77,14 +77,18 @@ class EDINETClient {
             const date = new Date(currentDate);
             date.setMonth(date.getMonth() - i);
             
-            // 月末日を追加
+            // 月末日を追加（ただし未来の日付は除外）
             const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-            searchDates.push(monthEnd.toISOString().split('T')[0]);
+            if (monthEnd <= currentDate) {
+                searchDates.push(monthEnd.toISOString().split('T')[0]);
+            }
             
             // 主要な報告時期（3月、6月、9月、12月）の場合は中旬も追加
             if ([2, 5, 8, 11].includes(date.getMonth())) {
                 const midMonth = new Date(date.getFullYear(), date.getMonth(), 15);
-                searchDates.push(midMonth.toISOString().split('T')[0]);
+                if (midMonth <= currentDate) {
+                    searchDates.push(midMonth.toISOString().split('T')[0]);
+                }
             }
         }
 
@@ -101,6 +105,7 @@ class EDINETClient {
                 const documents = await this.getDocumentList(date);
                 
                 if (!documents || !documents.results) {
+                    console.warn(`${date}: 書類データが取得できませんでした`);
                     continue;
                 }
                 
@@ -142,6 +147,10 @@ class EDINETClient {
                 
             } catch (error) {
                 console.warn(`日付 ${date} での検索エラー:`, error.message);
+                // 認証エラーの場合は上位に伝播
+                if (error.message.includes('認証エラー')) {
+                    throw error;
+                }
             }
         }
 
@@ -159,14 +168,27 @@ class EDINETClient {
         const url = `${this.baseURL}/documents.json`;
         const params = {
             date: date,
-            type: 2, // 提出書類一覧及びメタデータ
-            'Subscription-Key': this.apiKey
+            type: 2 // 提出書類一覧及びメタデータ
         };
 
         try {
-            const response = await axios.get(url, { params });
+            const response = await axios.get(url, { 
+                params,
+                headers: {
+                    'Subscription-Key': this.apiKey
+                }
+            });
+            
+            // APIエラーチェック
+            if (response.data && response.data.statusCode === 401) {
+                throw new Error('EDINET API認証エラー: 無効なAPIキーです。環境変数EDINET_API_KEYを確認してください。');
+            }
+            
             return response.data;
         } catch (error) {
+            if (error.response && error.response.status === 401) {
+                throw new Error('EDINET API認証エラー: 無効なAPIキーです。環境変数EDINET_API_KEYを確認してください。');
+            }
             throw new Error(`書類一覧取得エラー: ${error.message}`);
         }
     }
@@ -195,14 +217,16 @@ class EDINETClient {
         
         const url = `${this.baseURL}/documents/${docID}`;
         const params = {
-            type: 2, // XBRL
-            'Subscription-Key': this.apiKey
+            type: 2 // XBRL
         };
 
         try {
             const response = await axios.get(url, {
                 params,
-                responseType: 'arraybuffer'
+                responseType: 'arraybuffer',
+                headers: {
+                    'Subscription-Key': this.apiKey
+                }
             });
 
             // Content-Typeでエラーチェック
@@ -432,6 +456,7 @@ class EDINETClient {
                 const documents = await this.getDocumentList(date);
                 
                 if (!documents || !documents.results) {
+                    console.warn(`${date}: 書類データが取得できませんでした`);
                     continue;
                 }
                 
