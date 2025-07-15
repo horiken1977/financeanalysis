@@ -673,6 +673,181 @@ class EDINETClient {
             .replace(/[ァ-ヶ]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0x60))
             .trim();
     }
+
+    /**
+     * 特定年度の財務データを取得（改善版）
+     * @param {string} edinetCode - EDINETコード
+     * @param {string} year - 年度
+     * @returns {Promise<Object>} 財務データ
+     */
+    async getYearlyFinancialDataImproved(edinetCode, year) {
+        console.log(`${year}年度の財務データ取得開始: ${edinetCode}`);
+        
+        const baseYear = parseInt(year);
+        const currentYear = new Date().getFullYear();
+        
+        // 未来年度の検索を防ぐ
+        if (baseYear > currentYear) {
+            throw new Error(`未来年度 ${baseYear} のデータは取得できません`);
+        }
+        
+        // より効率的な検索日程（実際のデータがある可能性が高い日付を優先）
+        const searchDates = this.generateRealisticSearchDates(baseYear);
+        
+        console.log(`検索対象期間: ${searchDates.length}日分`);
+        
+        let searchCount = 0;
+        const maxSearches = 10; // 検索回数を制限してタイムアウトを防ぐ
+        
+        for (const date of searchDates) {
+            if (searchCount >= maxSearches) {
+                console.log(`検索上限に達しました: ${searchCount}回`);
+                break;
+            }
+            
+            try {
+                searchCount++;
+                console.log(`検索中 (${searchCount}/${maxSearches}): ${date}`);
+                
+                await this.rateLimiter.throttle();
+                
+                const documents = await this.getDocumentList(date);
+                
+                if (!documents || !documents.results) {
+                    continue;
+                }
+                
+                const reports = this.filterFinancialReports(documents);
+                
+                // 指定したEDINETコードの報告書を探す
+                const targetReport = reports.find(report => 
+                    report.edinetCode === edinetCode &&
+                    (report.formCode === '030000' || report.formCode === '043000') // 有価証券報告書または四半期報告書
+                );
+                
+                if (targetReport) {
+                    console.log(`${year}年度の書類発見: ${targetReport.docDescription} (${date})`);
+                    
+                    try {
+                        // より安全なXBRLデータ取得
+                        const xbrlData = await this.getXBRLDataSafely(targetReport.docID);
+                        const parsedData = await this.parseXBRL(xbrlData);
+                        const financialData = this.extractFinancialData(parsedData);
+                        
+                        console.log(`${year}年度の財務データ解析完了`);
+                        
+                        return {
+                            ...financialData,
+                            metadata: {
+                                docID: targetReport.docID,
+                                filerName: targetReport.filerName,
+                                submitDate: targetReport.submitDate,
+                                docDescription: targetReport.docDescription,
+                                formCode: targetReport.formCode,
+                                foundDate: date,
+                                year: year,
+                                searchCount: searchCount
+                            }
+                        };
+                    } catch (parseError) {
+                        console.warn(`${year}年度 書類解析エラー:`, parseError.message);
+                        // 解析エラーの場合は次の書類を探す
+                        continue;
+                    }
+                }
+            } catch (error) {
+                console.warn(`${year}年度 日付 ${date} での検索エラー:`, error.message);
+                // 認証エラーの場合は上位に伝播
+                if (error.message.includes('認証エラー')) {
+                    throw error;
+                }
+                continue;
+            }
+        }
+        
+        throw new Error(`${year}年度の財務データが見つかりませんでした（検索期間: ${searchCount}日分）`);
+    }
+
+    /**
+     * 現実的な検索日付を生成（年度指定）
+     * @param {number} year - 対象年度
+     * @returns {Array<string>} 検索日付配列
+     */
+    generateRealisticSearchDates(year) {
+        const dates = [];
+        
+        // 有価証券報告書の一般的な提出時期
+        const reportingDates = [
+            `${year + 1}-06-30`,  // 6月末（最も一般的）
+            `${year + 1}-06-29`,  // 6月末前
+            `${year + 1}-05-31`,  // 5月末
+            `${year + 1}-07-31`,  // 7月末
+            `${year + 1}-04-30`,  // 4月末
+            `${year + 1}-08-31`,  // 8月末
+            `${year}-12-31`,      // 年度末
+            `${year}-09-30`,      // 第2四半期
+            `${year}-06-30`,      // 第1四半期
+            `${year}-03-31`       // 年度始
+        ];
+        
+        // 現在日付より前の日付のみを追加
+        const currentDate = new Date();
+        reportingDates.forEach(dateStr => {
+            const date = new Date(dateStr);
+            if (date <= currentDate) {
+                dates.push(dateStr);
+            }
+        });
+        
+        return dates;
+    }
+
+    /**
+     * 安全なXBRLデータ取得（タイムアウト付き）
+     * @param {string} docID - 書類管理番号
+     * @returns {Promise<Buffer>} XBRLファイルのZIPバイナリデータ
+     */
+    async getXBRLDataSafely(docID) {
+        await this.rateLimiter.throttle();
+        
+        const url = `${this.baseURL}/documents/${docID}`;
+        const params = {
+            type: 2, // XBRL
+            'Subscription-Key': this.apiKey
+        };
+
+        try {
+            const response = await axios.get(url, {
+                params,
+                responseType: 'arraybuffer',
+                headers: {
+                    'User-Agent': 'financeanalysis-app/1.0'
+                },
+                timeout: 30000, // 30秒でタイムアウト
+                maxContentLength: 50 * 1024 * 1024, // 50MB制限
+                validateStatus: (status) => status < 400
+            });
+
+            // Content-Typeでエラーチェック
+            if (response.headers['content-type']?.includes('application/json')) {
+                const errorData = JSON.parse(response.data);
+                throw new Error(`API Error: ${errorData.message || 'Unknown error'}`);
+            }
+
+            // ファイルサイズチェック
+            if (response.data.length === 0) {
+                throw new Error('空のXBRLファイルが返されました');
+            }
+
+            console.log(`XBRLデータ取得成功: ${(response.data.length / 1024 / 1024).toFixed(2)}MB`);
+            return response.data;
+        } catch (error) {
+            if (error.code === 'ECONNABORTED') {
+                throw new Error('XBRLダウンロードがタイムアウトしました（30秒）');
+            }
+            throw new Error(`XBRLデータ取得エラー: ${error.message}`);
+        }
+    }
 }
 
 /**

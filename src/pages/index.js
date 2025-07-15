@@ -12,6 +12,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 export default function Home() {
     const [companies, setCompanies] = useState(null);
     const [selectedCompany, setSelectedCompany] = useState(null);
+    const [selectedYear, setSelectedYear] = useState(null);
+    const [availableYears, setAvailableYears] = useState([]);
     const [financialData, setFinancialData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [loadingFinancial, setLoadingFinancial] = useState(false);
@@ -26,9 +28,7 @@ export default function Home() {
     const handleSearch = async (companyName) => {
         setLoading(true);
         setError(null);
-        setCompanies(null);
-        setSelectedCompany(null);
-        setFinancialData(null);
+        resetStates();
 
         try {
             const response = await fetch('/api/search-company', {
@@ -47,10 +47,6 @@ export default function Home() {
             const data = await response.json();
             setCompanies(data.companies);
             
-            // 企業が1社のみの場合は自動的に選択
-            if (data.companies.length === 1) {
-                await handleCompanySelect(data.companies[0]);
-            }
         } catch (err) {
             setError(err.message);
         } finally {
@@ -58,35 +54,60 @@ export default function Home() {
         }
     };
 
-    const handleCompanySelect = async (company) => {
+    const resetStates = () => {
+        setCompanies(null);
+        setSelectedCompany(null);
+        setSelectedYear(null);
+        setAvailableYears([]);
+        setFinancialData(null);
+    };
+
+    const handleCompanySelect = (company) => {
         setSelectedCompany(company);
+        setSelectedYear(null);
+        setFinancialData(null);
+        
+        // 利用可能な年度を生成
+        const currentYear = new Date().getFullYear();
+        const years = Array.from({length: 10}, (_, i) => currentYear - 1 - i); // 過去10年
+        setAvailableYears(years);
+        
+        console.log(`企業選択: ${company.filerName} (${company.edinetCode})`);
+    };
+
+    const handleYearSelect = async (year) => {
+        if (!selectedCompany) return;
+        
+        setSelectedYear(year);
         setLoadingFinancial(true);
         setError(null);
+        setFinancialData(null);
 
         try {
-            const currentYear = new Date().getFullYear();
-            const years = Array.from({length: 5}, (_, i) => currentYear - 1 - i);
-
-            const response = await fetch('/api/get-financial-data', {
+            console.log(`年度選択: ${year}年度の財務データを取得中...`);
+            
+            const response = await fetch('/api/get-yearly-data', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ 
-                    edinetCode: company.edinetCode,
-                    years: years 
+                    edinetCode: selectedCompany.edinetCode,
+                    year: year,
+                    companyName: selectedCompany.filerName
                 }),
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || '財務データの取得に失敗しました');
+                throw new Error(errorData.error || `${year}年度の財務データ取得に失敗しました`);
             }
 
             const data = await response.json();
             setFinancialData(data);
+            console.log(`${year}年度の財務データ取得完了`);
         } catch (err) {
-            setError(err.message);
+            setError(`${year}年度: ${err.message}`);
         } finally {
             setLoadingFinancial(false);
         }
@@ -622,6 +643,49 @@ export default function Home() {
                     </div>
                 )}
 
+                {/* 年度選択 */}
+                {selectedCompany && availableYears.length > 0 && (
+                    <div className="bg-white rounded-lg shadow p-6 mb-8">
+                        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                            {selectedCompany.filerName} - 年度選択
+                        </h2>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            {availableYears.map((year) => (
+                                <button
+                                    key={year}
+                                    onClick={() => handleYearSelect(year)}
+                                    disabled={loadingFinancial && selectedYear === year}
+                                    className={`p-3 rounded-lg border text-center transition-colors ${
+                                        selectedYear === year
+                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    } ${
+                                        loadingFinancial && selectedYear === year
+                                            ? 'opacity-50 cursor-not-allowed'
+                                            : ''
+                                    }`}
+                                >
+                                    <div className="font-medium">{year}年度</div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        {year}/{year + 1}
+                                    </div>
+                                    {loadingFinancial && selectedYear === year && (
+                                        <div className="mt-2">
+                                            <svg className="animate-spin h-4 w-4 mx-auto text-blue-500" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="mt-4 text-sm text-gray-600">
+                            年度をクリックしてBS/PLデータを表示
+                        </div>
+                    </div>
+                )}
+
                 {/* 財務データ読み込み中 */}
                 {loadingFinancial && (
                     <div className="bg-white rounded-lg shadow p-6 mb-8">
@@ -661,17 +725,43 @@ export default function Home() {
                         {/* 財務データテーブル */}
                         <div className="bg-white rounded-lg shadow p-6">
                             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                                財務データ（直近5年分）
+                                {selectedYear}年度 財務データ（明細含む）
                             </h2>
-                            <FinancialDataTable data={financialData.data} years={financialData.years} />
+                            {financialData.data ? (
+                                <FinancialDataTable 
+                                    data={[{
+                                        year: selectedYear,
+                                        data: financialData.data
+                                    }]} 
+                                    years={[selectedYear]} 
+                                    singleYear={true}
+                                />
+                            ) : (
+                                <div className="text-center py-8 text-gray-500">
+                                    財務データの取得に失敗しました
+                                </div>
+                            )}
                         </div>
 
                         {/* 財務グラフ */}
                         <div className="bg-white rounded-lg shadow p-6">
                             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                                財務推移グラフ
+                                {selectedYear}年度 財務データ可視化
                             </h2>
-                            <FinancialChart data={financialData.data} years={financialData.years} />
+                            {financialData.data ? (
+                                <FinancialChart 
+                                    data={[{
+                                        year: selectedYear,
+                                        data: financialData.data
+                                    }]} 
+                                    years={[selectedYear]}
+                                    singleYear={true}
+                                />
+                            ) : (
+                                <div className="text-center py-8 text-gray-500">
+                                    グラフデータがありません
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

@@ -27,7 +27,7 @@ ChartJS.register(
     Legend
 );
 
-export default function FinancialChart({ data, years }) {
+export default function FinancialChart({ data, years, singleYear = false }) {
     if (!data || data.length === 0) {
         return (
             <div className="text-center py-8 text-gray-500">
@@ -180,6 +180,144 @@ export default function FinancialChart({ data, years }) {
             },
         },
     };
+
+    if (singleYear) {
+        // 単年度表示の場合は簡易グラフを表示
+        const singleYearData = validData[0]?.data;
+        if (!singleYearData) {
+            return (
+                <div className="text-center py-8 text-gray-500">
+                    グラフ用データがありません
+                </div>
+            );
+        }
+
+        // 単年度用の数値表示
+        const formatValue = (value) => {
+            if (!value || value === 0) return 'データなし';
+            return `${(value / 1000000).toLocaleString('ja-JP', { maximumFractionDigits: 0 })}百万円`;
+        };
+
+        const calculateRatio = (numerator, denominator) => {
+            if (!numerator || !denominator || denominator === 0) return '算出不可';
+            return `${((numerator / denominator) * 100).toFixed(2)}%`;
+        };
+
+        return (
+            <div className="space-y-6">
+                {/* 貸借対照表サマリー */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-blue-800 mb-2">資産合計</h4>
+                        <p className="text-2xl font-bold text-blue-900">
+                            {formatValue(singleYearData.balanceSheet?.totalAssets)}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                            流動: {formatValue(singleYearData.balanceSheet?.currentAssets)}<br/>
+                            固定: {formatValue(singleYearData.balanceSheet?.nonCurrentAssets)}
+                        </p>
+                    </div>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-red-800 mb-2">負債合計</h4>
+                        <p className="text-2xl font-bold text-red-900">
+                            {formatValue(singleYearData.balanceSheet?.totalLiabilities)}
+                        </p>
+                        <p className="text-xs text-red-600 mt-1">
+                            流動: {formatValue(singleYearData.balanceSheet?.currentLiabilities)}<br/>
+                            固定: {formatValue(singleYearData.balanceSheet?.nonCurrentLiabilities)}
+                        </p>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-green-800 mb-2">純資産合計</h4>
+                        <p className="text-2xl font-bold text-green-900">
+                            {formatValue(singleYearData.balanceSheet?.netAssets)}
+                        </p>
+                        <p className="text-xs text-green-600 mt-1">
+                            自己資本比率: {calculateRatio(
+                                singleYearData.balanceSheet?.netAssets,
+                                singleYearData.balanceSheet?.totalAssets
+                            )}
+                        </p>
+                    </div>
+                </div>
+
+                {/* 損益計算書サマリー */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-blue-800 mb-2">売上高</h4>
+                        <p className="text-xl font-bold text-blue-900">
+                            {formatValue(singleYearData.profitLoss?.netSales)}
+                        </p>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-purple-800 mb-2">営業利益</h4>
+                        <p className="text-xl font-bold text-purple-900">
+                            {formatValue(singleYearData.profitLoss?.operatingIncome)}
+                        </p>
+                        <p className="text-xs text-purple-600 mt-1">
+                            営業利益率: {calculateRatio(
+                                singleYearData.profitLoss?.operatingIncome,
+                                singleYearData.profitLoss?.netSales
+                            )}
+                        </p>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-green-800 mb-2">経常利益</h4>
+                        <p className="text-xl font-bold text-green-900">
+                            {formatValue(singleYearData.profitLoss?.ordinaryIncome)}
+                        </p>
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-yellow-800 mb-2">当期純利益</h4>
+                        <p className="text-xl font-bold text-yellow-900">
+                            {formatValue(singleYearData.profitLoss?.netIncome)}
+                        </p>
+                        <p className="text-xs text-yellow-600 mt-1">
+                            ROA: {calculateRatio(
+                                singleYearData.profitLoss?.netIncome,
+                                singleYearData.balanceSheet?.totalAssets
+                            )}
+                        </p>
+                    </div>
+                </div>
+
+                {/* 主要指標 */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-3">主要指標</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                            <span className="text-gray-600">総資産利益率 (ROA):</span>
+                            <p className="font-semibold">{calculateRatio(
+                                singleYearData.profitLoss?.netIncome,
+                                singleYearData.balanceSheet?.totalAssets
+                            )}</p>
+                        </div>
+                        <div>
+                            <span className="text-gray-600">自己資本比率:</span>
+                            <p className="font-semibold">{calculateRatio(
+                                singleYearData.balanceSheet?.netAssets,
+                                singleYearData.balanceSheet?.totalAssets
+                            )}</p>
+                        </div>
+                        <div>
+                            <span className="text-gray-600">営業利益率:</span>
+                            <p className="font-semibold">{calculateRatio(
+                                singleYearData.profitLoss?.operatingIncome,
+                                singleYearData.profitLoss?.netSales
+                            )}</p>
+                        </div>
+                        <div>
+                            <span className="text-gray-600">売上総利益率:</span>
+                            <p className="font-semibold">{calculateRatio(
+                                singleYearData.profitLoss?.grossProfit,
+                                singleYearData.profitLoss?.netSales
+                            )}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">
