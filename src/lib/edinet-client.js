@@ -15,7 +15,7 @@ class EDINETClient {
     }
 
     /**
-     * 企業を検索（高速版）
+     * 企業を検索（改善版）
      * @param {string} companyName - 企業名
      * @returns {Promise<Array>} 検索結果
      */
@@ -24,33 +24,73 @@ class EDINETClient {
             console.log(`企業検索開始: ${companyName}`);
             const companies = new Map();
             
-            // 段階的検索戦略：最新のデータから順に検索
-            const searchPhases = [
-                { months: 1, description: '直近1ヶ月' },
-                { months: 3, description: '直近3ヶ月' },
-                { months: 12, description: '直近1年' },
-                { months: 36, description: '直近3年' }
-            ];
+            // より包括的な検索戦略：複数期間を並行して検索
+            const searchDates = this.generateComprehensiveSearchDates();
+            
+            console.log(`検索対象: ${searchDates.length}日分のデータ`);
+            
+            let totalSearched = 0;
+            const maxSearches = 15; // 検索回数を増やす
+            
+            for (const date of searchDates) {
+                if (totalSearched >= maxSearches) {
+                    console.log(`検索上限に達しました: ${totalSearched}回`);
+                    break;
+                }
+                
+                try {
+                    totalSearched++;
+                    console.log(`検索中 (${totalSearched}/${maxSearches}): ${date}`);
+                    
+                    const documents = await this.getDocumentList(date);
+                    
+                    if (!documents || !documents.results) {
+                        console.warn(`${date}: 書類データが取得できませんでした`);
+                        continue;
+                    }
+                    
+                    // 全ての書類から企業を検索（書類種別を限定しない）
+                    const allReports = documents.results || [];
+                    console.log(`${date}: ${allReports.length}件の書類をチェック`);
+                    
+                    // 企業名マッチング（より包括的な検索）
+                    const matchedReports = this.findMatchingCompanies(allReports, companyName);
+                    
+                    if (matchedReports.length > 0) {
+                        console.log(`${date}: ${matchedReports.length}件の一致企業を発見`);
+                    }
 
-            for (const phase of searchPhases) {
-                console.log(`検索フェーズ: ${phase.description}`);
-                
-                const found = await this.searchCompanyInPeriod(companyName, phase.months, companies);
-                
-                if (found > 0) {
-                    console.log(`${phase.description}で${found}社発見`);
-                    // 十分な企業が見つかったら終了
-                    if (companies.size >= 3) {
-                        break;
+                    matchedReports.forEach(report => {
+                        if (!companies.has(report.edinetCode)) {
+                            companies.set(report.edinetCode, {
+                                edinetCode: report.edinetCode,
+                                filerName: report.filerName,
+                                submitterName: report.submitterName,
+                                securitiesCode: report.securitiesCode,
+                                jcn: report.jcn,
+                                lastFoundDate: date,
+                                formCode: report.formCode,
+                                docDescription: report.docDescription
+                            });
+                        }
+                    });
+
+                    // 早期終了しない：より多くの企業を見つけるため継続
+                    
+                } catch (error) {
+                    console.warn(`日付 ${date} での検索エラー:`, error.message);
+                    // 認証エラーの場合は上位に伝播
+                    if (error.message.includes('認証エラー')) {
+                        throw error;
                     }
                 }
             }
 
             const result = Array.from(companies.values());
-            console.log(`企業検索完了: ${result.length}社見つかりました`);
+            console.log(`企業検索完了: ${result.length}社見つかりました（${totalSearched}日分検索）`);
             
             if (result.length === 0) {
-                console.warn(`「${companyName}」に一致する企業が見つかりませんでした`);
+                console.warn(`「${companyName}」に一致する企業が見つかりませんでした。検索した期間: ${totalSearched}日分`);
             }
 
             return result;
@@ -551,6 +591,87 @@ class EDINETClient {
         }
         
         return dates.sort((a, b) => new Date(b) - new Date(a)); // 新しい日付から古い日付へソート
+    }
+
+    /**
+     * 包括的な検索日付を生成
+     * @returns {Array<string>} 検索日付配列
+     */
+    generateComprehensiveSearchDates() {
+        const dates = [];
+        const currentDate = new Date();
+        
+        // より広範囲の日付を生成：過去6ヶ月を重点的に
+        for (let i = 0; i < 180; i += 7) { // 週ごとに過去6ヶ月
+            const date = new Date(currentDate);
+            date.setDate(date.getDate() - i);
+            dates.push(date.toISOString().split('T')[0]);
+        }
+        
+        // 重要な月末日を追加
+        for (let month = 0; month < 12; month++) {
+            const date = new Date(currentDate);
+            date.setMonth(date.getMonth() - month);
+            const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+            const monthEndStr = monthEnd.toISOString().split('T')[0];
+            if (!dates.includes(monthEndStr)) {
+                dates.push(monthEndStr);
+            }
+        }
+        
+        return dates.sort((a, b) => new Date(b) - new Date(a));
+    }
+
+    /**
+     * 企業名マッチング（改善版）
+     * @param {Array} reports - 書類配列
+     * @param {string} companyName - 検索する企業名
+     * @returns {Array} マッチした書類配列
+     */
+    findMatchingCompanies(reports, companyName) {
+        const companyNameLower = companyName.toLowerCase();
+        
+        return reports.filter(report => {
+            const filerName = (report.filerName || '').trim();
+            const submitterName = (report.submitterName || '').trim();
+            
+            // より包括的なマッチング条件
+            const matchConditions = [
+                // 小文字変換での部分一致
+                filerName.toLowerCase().includes(companyNameLower),
+                submitterName.toLowerCase().includes(companyNameLower),
+                
+                // 元の文字での部分一致
+                filerName.includes(companyName),
+                submitterName.includes(companyName),
+                
+                // 株式会社などの修飾語を除いた検索
+                filerName.replace(/株式会社|有限会社|合同会社|合資会社|合名会社/g, '').toLowerCase().includes(companyNameLower),
+                submitterName.replace(/株式会社|有限会社|合同会社|合資会社|合名会社/g, '').toLowerCase().includes(companyNameLower),
+                
+                // カタカナ・ひらがな対応（基本的な変換）
+                this.normalizeJapaneseText(filerName).includes(this.normalizeJapaneseText(companyName)),
+                this.normalizeJapaneseText(submitterName).includes(this.normalizeJapaneseText(companyName))
+            ];
+            
+            return matchConditions.some(condition => condition);
+        });
+    }
+
+    /**
+     * 日本語テキストの正規化（簡易版）
+     * @param {string} text - 正規化するテキスト
+     * @returns {string} 正規化されたテキスト
+     */
+    normalizeJapaneseText(text) {
+        if (!text) return '';
+        
+        // 全角を半角に、カタカナをひらがなに変換（簡易版）
+        return text
+            .toLowerCase()
+            .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+            .replace(/[ァ-ヶ]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0x60))
+            .trim();
     }
 }
 

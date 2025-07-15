@@ -17,9 +17,11 @@ export default function Home() {
     const [loadingFinancial, setLoadingFinancial] = useState(false);
     const [loadingConnection, setLoadingConnection] = useState(false);
     const [loadingEnvCheck, setLoadingEnvCheck] = useState(false);
+    const [loadingSearchDebug, setLoadingSearchDebug] = useState(false);
     const [error, setError] = useState(null);
     const [connectionStatus, setConnectionStatus] = useState(null);
     const [envStatus, setEnvStatus] = useState(null);
+    const [searchDebugStatus, setSearchDebugStatus] = useState(null);
 
     const handleSearch = async (companyName) => {
         setLoading(true);
@@ -173,6 +175,48 @@ export default function Home() {
         }
     };
 
+    const handleSearchDebug = async () => {
+        setLoadingSearchDebug(true);
+        setSearchDebugStatus(null);
+        setError(null);
+
+        try {
+            const response = await fetch('/api/debug-company-search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    companyName: 'トヨタ',  // デバッグ用固定値
+                    testDate: '2025-07-08' // 接続テストで成功した日付を使用
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setSearchDebugStatus({
+                    success: true,
+                    data: data
+                });
+            } else {
+                setSearchDebugStatus({
+                    success: false,
+                    error: data.error,
+                    details: data.details
+                });
+            }
+        } catch (err) {
+            setSearchDebugStatus({
+                success: false,
+                error: 'ネットワークエラー',
+                details: err.message
+            });
+        } finally {
+            setLoadingSearchDebug(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-50">
             <Head>
@@ -260,6 +304,36 @@ export default function Home() {
                                     )}
                                 </button>
                             </div>
+                            
+                            {/* 企業検索デバッグ */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-sm font-medium text-gray-900">検索デバッグ</h3>
+                                    <p className="text-xs text-gray-500 mt-1">「トヨタ」の検索プロセスを詳細分析</p>
+                                </div>
+                                <button
+                                    onClick={handleSearchDebug}
+                                    disabled={loadingSearchDebug}
+                                    className="flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {loadingSearchDebug ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            デバッグ中...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                            </svg>
+                                            検索デバッグ
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -325,6 +399,88 @@ export default function Home() {
                                                 typeof envStatus.details === 'string' 
                                                     ? envStatus.details 
                                                     : JSON.stringify(envStatus.details)
+                                            }</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 検索デバッグ結果 */}
+                {searchDebugStatus && (
+                    <div className={`rounded-lg p-4 mb-8 ${
+                        searchDebugStatus.success 
+                            ? 'bg-green-50 border border-green-200' 
+                            : 'bg-red-50 border border-red-200'
+                    }`}>
+                        <div className="flex">
+                            <div className="flex-shrink-0">
+                                {searchDebugStatus.success ? (
+                                    <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                ) : (
+                                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
+                                )}
+                            </div>
+                            <div className="ml-3 flex-1">
+                                <h3 className={`text-sm font-medium ${
+                                    searchDebugStatus.success ? 'text-green-800' : 'text-red-800'
+                                }`}>
+                                    検索デバッグ結果
+                                </h3>
+                                {searchDebugStatus.success && searchDebugStatus.data?.analysis && (
+                                    <div className="mt-2 text-xs text-green-700">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <p><span className="font-semibold">検索語:</span> {searchDebugStatus.data.analysis.searchTerm}</p>
+                                                <p><span className="font-semibold">検索日:</span> {searchDebugStatus.data.analysis.searchDate}</p>
+                                                <p><span className="font-semibold">総書類数:</span> {searchDebugStatus.data.analysis.totalDocuments}件</p>
+                                                <p><span className="font-semibold">マッチ数:</span> {searchDebugStatus.data.analysis.totalMatches}件</p>
+                                                <p><span className="font-semibold">ユニーク企業:</span> {searchDebugStatus.data.analysis.uniqueCompanies}社</p>
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold mb-1">発見企業:</p>
+                                                {searchDebugStatus.data.analysis.matchedCompanies.length > 0 ? (
+                                                    <ul className="list-disc list-inside space-y-1">
+                                                        {searchDebugStatus.data.analysis.matchedCompanies.slice(0, 5).map((company, index) => (
+                                                            <li key={index} className="text-xs">
+                                                                {company.filerName} ({company.edinetCode})
+                                                            </li>
+                                                        ))}
+                                                        {searchDebugStatus.data.analysis.matchedCompanies.length > 5 && (
+                                                            <li className="text-xs text-gray-600">...他{searchDebugStatus.data.analysis.matchedCompanies.length - 5}社</li>
+                                                        )}
+                                                    </ul>
+                                                ) : (
+                                                    <p className="text-red-600">マッチした企業なし</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {searchDebugStatus.data.analysis.matchedCompanies.length === 0 && (
+                                            <div className="mt-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800">
+                                                <p className="font-semibold">サンプル企業名（参考）:</p>
+                                                <div className="mt-1 text-xs">
+                                                    {searchDebugStatus.data.analysis.sampleCompanies.slice(0, 3).map((company, index) => (
+                                                        <p key={index}>• {company.filerName}</p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {!searchDebugStatus.success && (
+                                    <div className="mt-1 text-sm text-red-700">
+                                        <p>{searchDebugStatus.error}</p>
+                                        {searchDebugStatus.details && (
+                                            <p className="text-xs mt-1">詳細: {
+                                                typeof searchDebugStatus.details === 'string' 
+                                                    ? searchDebugStatus.details 
+                                                    : JSON.stringify(searchDebugStatus.details)
                                             }</p>
                                         )}
                                     </div>
