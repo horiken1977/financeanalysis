@@ -11,11 +11,28 @@ export default async function handler(req, res) {
     }
 
     const apiKey = process.env.EDINET_API_KEY;
+    
+    // 環境変数の詳細ログ
+    console.log('=== API キー確認 ===');
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    console.log('VERCEL_ENV:', process.env.VERCEL_ENV);
+    console.log('API Key exists:', !!apiKey);
+    console.log('API Key type:', typeof apiKey);
+    console.log('API Key length:', apiKey ? apiKey.length : 0);
+    console.log('API Key preview:', apiKey ? `${apiKey.substring(0, 8)}***${apiKey.substring(apiKey.length - 4)}` : 'null');
+    
     if (!apiKey) {
         return res.status(500).json({ 
             error: 'EDINET API キーが設定されていません',
             statusCode: 500,
-            details: '環境変数EDINET_API_KEYが見つかりません'
+            details: '環境変数EDINET_API_KEYが見つかりません',
+            debugInfo: {
+                nodeEnv: process.env.NODE_ENV,
+                vercelEnv: process.env.VERCEL_ENV,
+                isVercel: !!process.env.VERCEL,
+                apiKeyExists: !!apiKey,
+                apiKeyType: typeof apiKey
+            }
         });
     }
 
