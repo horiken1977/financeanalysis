@@ -44,31 +44,65 @@ export default async function handler(req, res) {
         testDate.setDate(testDate.getDate() - 7); // 1週間前の日付
         const dateStr = testDate.toISOString().split('T')[0];
         
-        const url = 'https://api.edinet-fsa.go.jp/api/v2/documents.json';
+        const url = 'https://disclosure.edinet-fsa.go.jp/api/v2/documents.json';
         const params = {
             date: dateStr,
-            type: 2 // 提出書類一覧及びメタデータ
+            type: 2, // 提出書類一覧及びメタデータ
+            'Subscription-Key': apiKey // EDINET API v2では認証キーはクエリパラメータとして送信
         };
 
-        console.log(`API疎通テスト: ${url}?date=${dateStr}&type=2`);
+        console.log(`API疎通テスト: ${url}?date=${dateStr}&type=2&Subscription-Key=${apiKey.substring(0, 8)}***`);
+        console.log('修正済み: Subscription-Keyをクエリパラメータとして送信');
 
         const response = await axios.get(url, {
             params,
             headers: {
-                'Subscription-Key': apiKey
+                'User-Agent': 'financeanalysis-app/1.0'
             },
-            timeout: 10000 // 10秒でタイムアウト
+            timeout: 10000, // 10秒でタイムアウト
+            validateStatus: (status) => {
+                // すべてのステータスコードを受け入れて詳細を確認
+                return status < 600;
+            }
         });
 
         console.log(`API応答ステータス: ${response.status}`);
-        console.log(`取得データ: ${JSON.stringify(response.data).substring(0, 200)}...`);
+        console.log(`レスポンスヘッダー:`, JSON.stringify(response.headers, null, 2));
+        console.log(`取得データ: ${JSON.stringify(response.data).substring(0, 500)}...`);
 
-        // APIエラーチェック
+        // 401エラーの詳細分析
+        if (response.status === 401) {
+            console.error('401エラー詳細分析:');
+            console.error('- APIキー長:', apiKey.length);
+            console.error('- APIキープレビュー:', `${apiKey.substring(0, 8)}***${apiKey.substring(apiKey.length - 4)}`);
+            console.error('- リクエストURL:', `${url}?${new URLSearchParams(params).toString()}`);
+            console.error('- レスポンスデータ:', JSON.stringify(response.data, null, 2));
+            
+            return res.status(401).json({
+                error: 'EDINET API認証エラー',
+                statusCode: 401,
+                details: '401 Unauthorized - APIキーが拒否されました',
+                debugInfo: {
+                    requestUrl: `${url}?${new URLSearchParams(params).toString()}`,
+                    apiKeyLength: apiKey.length,
+                    apiKeyPreview: `${apiKey.substring(0, 8)}***${apiKey.substring(apiKey.length - 4)}`,
+                    responseData: response.data,
+                    responseHeaders: response.headers
+                },
+                suggestion: 'EDINET APIキーが無効または期限切れの可能性があります。EDINETサイトで新しいAPIキーを取得してください。'
+            });
+        }
+
+        // APIエラーチェック（レスポンス内のstatusCode）
         if (response.data && response.data.statusCode === 401) {
             return res.status(401).json({
                 error: 'EDINET API認証エラー',
                 statusCode: 401,
-                details: 'APIキーが無効です',
+                details: 'レスポンス内でAPIキーが無効と判定されました',
+                debugInfo: {
+                    responseStatusCode: response.data.statusCode,
+                    responseMessage: response.data.message || 'メッセージなし'
+                },
                 suggestion: 'Vercelの環境変数でEDINET_API_KEYを確認してください'
             });
         }

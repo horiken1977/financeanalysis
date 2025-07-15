@@ -10,7 +10,7 @@ import { XMLParser } from 'fast-xml-parser';
 class EDINETClient {
     constructor(apiKey) {
         this.apiKey = apiKey;
-        this.baseURL = 'https://api.edinet-fsa.go.jp/api/v2';
+        this.baseURL = 'https://disclosure.edinet-fsa.go.jp/api/v2';
         this.rateLimiter = new RateLimiter(1); // 1リクエスト/秒
     }
 
@@ -168,14 +168,15 @@ class EDINETClient {
         const url = `${this.baseURL}/documents.json`;
         const params = {
             date: date,
-            type: 2 // 提出書類一覧及びメタデータ
+            type: 2, // 提出書類一覧及びメタデータ
+            'Subscription-Key': this.apiKey // EDINET API v2では認証キーはクエリパラメータ
         };
 
         try {
             const response = await axios.get(url, { 
                 params,
                 headers: {
-                    'Subscription-Key': this.apiKey
+                    'User-Agent': 'financeanalysis-app/1.0'
                 }
             });
             
@@ -217,7 +218,8 @@ class EDINETClient {
         
         const url = `${this.baseURL}/documents/${docID}`;
         const params = {
-            type: 2 // XBRL
+            type: 2, // XBRL
+            'Subscription-Key': this.apiKey // EDINET API v2では認証キーはクエリパラメータ
         };
 
         try {
@@ -225,7 +227,7 @@ class EDINETClient {
                 params,
                 responseType: 'arraybuffer',
                 headers: {
-                    'Subscription-Key': this.apiKey
+                    'User-Agent': 'financeanalysis-app/1.0'
                 }
             });
 
