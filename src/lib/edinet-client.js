@@ -605,11 +605,8 @@ class EDINETClient {
                 
                 const reports = this.filterFinancialReports(documents);
                 
-                // 指定したEDINETコードの報告書を探す
-                const targetReport = reports.find(report => 
-                    report.edinetCode === edinetCode &&
-                    (report.formCode === '030000' || report.formCode === '043000') // 有価証券報告書または四半期報告書
-                );
+                // 指定したEDINETコードの報告書を探す（XBRL対応書類を優先）
+                const targetReport = this.findBestFinancialReport(reports, edinetCode);
                 
                 if (targetReport) {
                     console.log(`${year}年度の書類発見: ${targetReport.docDescription} (${date})`);
@@ -820,11 +817,8 @@ class EDINETClient {
                 
                 const reports = this.filterFinancialReports(documents);
                 
-                // 指定したEDINETコードの報告書を探す
-                const targetReport = reports.find(report => 
-                    report.edinetCode === edinetCode &&
-                    (report.formCode === '030000' || report.formCode === '043000') // 有価証券報告書または四半期報告書
-                );
+                // 指定したEDINETコードの報告書を探す（XBRL対応書類を優先）
+                const targetReport = this.findBestFinancialReport(reports, edinetCode);
                 
                 if (targetReport) {
                     console.log(`${year}年度の書類発見: ${targetReport.docDescription} (${date})`);
@@ -1010,59 +1004,126 @@ class EDINETClient {
         await this.rateLimiter.throttle();
         
         const url = `${this.baseURL}/documents/${docID}`;
-        const params = {
-            type: 2, // XBRL
-            'Subscription-Key': this.apiKey
-        };
+        
+        // 複数のtypeパラメータを試行
+        const tryParams = [
+            { type: 2, description: 'XBRL' },
+            { type: 5, description: 'XBRL (alternative)' },
+            { type: 1, description: 'ZIP (fallback)' }
+        ];
 
-        try {
-            const response = await axios.get(url, {
-                params,
-                responseType: 'arraybuffer',
-                headers: {
-                    'User-Agent': 'financeanalysis-app/1.0',
-                    'Accept': 'application/zip, application/octet-stream, */*'
-                },
-                timeout: 45000, // 45秒に延長
-                maxContentLength: 100 * 1024 * 1024, // 100MBに増大
-                validateStatus: (status) => status < 400
-            });
+        for (const paramSet of tryParams) {
+            try {
+                console.log(`書類取得試行: ${paramSet.description} (type=${paramSet.type})`);
+                
+                const params = {
+                    type: paramSet.type,
+                    'Subscription-Key': this.apiKey
+                };
 
-            // Content-Typeでエラーチェック
-            if (response.headers['content-type']?.includes('application/json')) {
-                const errorData = JSON.parse(response.data);
-                throw new Error(`API Error: ${errorData.message || 'Unknown error'}`);
+                const response = await axios.get(url, {
+                    params,
+                    responseType: 'arraybuffer',
+                    headers: {
+                        'User-Agent': 'financeanalysis-app/1.0',
+                        'Accept': 'application/zip, application/octet-stream, */*'
+                    },
+                    timeout: 45000, // 45秒に延長
+                    maxContentLength: 100 * 1024 * 1024, // 100MBに増大
+                    validateStatus: (status) => status < 400
+                });
+
+                console.log(`レスポンス情報: Status=${response.status}, Content-Type=${response.headers['content-type']}, Size=${response.data.length} bytes`);
+
+                // Content-Typeでエラーチェック
+                if (response.headers['content-type']?.includes('application/json')) {
+                    const errorData = JSON.parse(response.data);
+                    console.warn(`API Error (type=${paramSet.type}): ${errorData.message || 'Unknown error'}`);
+                    continue; // 次のtypeを試す
+                }
+
+                // PDFファイルが返された場合はスキップ
+                if (response.headers['content-type']?.includes('application/pdf')) {
+                    console.warn(`PDFファイルが返されました (type=${paramSet.type}): XBRLデータではありません`);
+                    continue; // 次のtypeを試す
+                }
+
+                // ファイルサイズチェック
+                if (response.data.length === 0) {
+                    console.warn(`空のファイルが返されました (type=${paramSet.type})`);
+                    continue; // 次のtypeを試す
+                }
+
+                // ファイルサイズが小さすぎる場合はエラーの可能性
+                if (response.data.length < 1024) {
+                    console.warn(`ファイルサイズが小さい (type=${paramSet.type}): ${response.data.length} bytes`);
+                }
+
+                // ZIPファイルの基本検証
+                const zipMagic = response.data.slice(0, 4);
+                const expectedMagic = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // "PK\x03\x04"
+                const alternativeMagic = Buffer.from([0x50, 0x4b, 0x05, 0x06]); // "PK\x05\x06"
+
+                if (zipMagic.equals(expectedMagic) || zipMagic.equals(alternativeMagic)) {
+                    console.log(`有効なZIPファイル取得成功 (type=${paramSet.type}): ${(response.data.length / 1024 / 1024).toFixed(2)}MB`);
+                    return response.data;
+                } else {
+                    console.warn(`ZIPファイル形式ではありません (type=${paramSet.type}): Magic=${zipMagic.toString('hex')}`);
+                    continue; // 次のtypeを試す
+                }
+
+            } catch (error) {
+                console.warn(`書類取得エラー (type=${paramSet.type}):`, error.message);
+                continue; // 次のtypeを試す
             }
-
-            // ファイルサイズチェック
-            if (response.data.length === 0) {
-                throw new Error('空のXBRLファイルが返されました');
-            }
-
-            // ファイルサイズが小さすぎる場合はエラーの可能性
-            if (response.data.length < 1024) {
-                console.warn(`ファイルサイズが小さい: ${response.data.length} bytes`);
-            }
-
-            console.log(`XBRLデータ取得成功: ${(response.data.length / 1024 / 1024).toFixed(2)}MB`);
-            console.log(`Content-Type: ${response.headers['content-type'] || 'unknown'}`);
-            
-            return response.data;
-        } catch (error) {
-            if (error.code === 'ECONNABORTED') {
-                throw new Error('XBRLダウンロードがタイムアウトしました（45秒）');
-            }
-            console.error(`XBRLデータ取得エラー詳細:`, {
-                docID: docID,
-                error: error.message,
-                response: error.response ? {
-                    status: error.response.status,
-                    statusText: error.response.statusText,
-                    headers: error.response.headers
-                } : null
-            });
-            throw new Error(`XBRLデータ取得エラー: ${error.message}`);
         }
+
+        // 全てのtypeで失敗した場合
+        throw new Error(`XBRLデータの取得に失敗しました。全てのtype (${tryParams.map(p => p.type).join(', ')}) で有効なZIPファイルが取得できませんでした。`);
+    }
+
+    /**
+     * 最適な財務報告書を検索（XBRL対応書類を優先）
+     * @param {Array} reports - 財務報告書一覧
+     * @param {string} edinetCode - EDINETコード
+     * @returns {Object|null} 最適な報告書またはnull
+     */
+    findBestFinancialReport(reports, edinetCode) {
+        // 指定したEDINETコードの報告書を全て取得
+        const candidateReports = reports.filter(report => 
+            report.edinetCode === edinetCode &&
+            (report.formCode === '030000' || report.formCode === '043000') // 有価証券報告書または四半期報告書
+        );
+
+        if (candidateReports.length === 0) {
+            return null;
+        }
+
+        // 優先度付きで最適な報告書を選択
+        const priorities = [
+            // 1. 有価証券報告書でXBRL対応が明示されている
+            report => report.formCode === '030000' && report.xbrlFlag === '1',
+            
+            // 2. 有価証券報告書（XBRL対応不明）
+            report => report.formCode === '030000',
+            
+            // 3. 四半期報告書でXBRL対応が明示されている
+            report => report.formCode === '043000' && report.xbrlFlag === '1',
+            
+            // 4. 四半期報告書（XBRL対応不明）
+            report => report.formCode === '043000'
+        ];
+
+        for (const priority of priorities) {
+            const found = candidateReports.find(priority);
+            if (found) {
+                console.log(`選択された報告書: ${found.docDescription} (formCode=${found.formCode}, xbrlFlag=${found.xbrlFlag || 'unknown'})`);
+                return found;
+            }
+        }
+
+        // フォールバック: 最初に見つかった報告書
+        return candidateReports[0];
     }
 }
 
