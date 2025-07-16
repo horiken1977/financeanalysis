@@ -284,38 +284,139 @@ class EDINETClient {
     }
 
     /**
-     * XBRLファイルを解析
+     * XBRLファイルを解析（改善版）
      * @param {Buffer} zipBuffer - ZIPファイルのバイナリデータ
      * @returns {Promise<Object>} 解析されたXBRLデータ
      */
     async parseXBRL(zipBuffer) {
         try {
-            const zip = new AdmZip(zipBuffer);
-            const entries = zip.getEntries();
+            // ZIPファイルの基本検証
+            if (!zipBuffer || zipBuffer.length === 0) {
+                throw new Error('ZIPファイルが空です');
+            }
 
-            // XBRLファイルを探す（通常は PublicDoc フォルダ内）
-            const xbrlEntry = entries.find(entry => 
-                entry.entryName.includes('.xbrl') && 
-                !entry.entryName.includes('_lab') && 
-                !entry.entryName.includes('_pre') &&
-                !entry.entryName.includes('_def')
-            );
+            // ZIPファイルのマジックナンバーをチェック
+            const zipMagic = zipBuffer.slice(0, 4);
+            const expectedMagic = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // "PK\x03\x04"
+            const alternativeMagic = Buffer.from([0x50, 0x4b, 0x05, 0x06]); // "PK\x05\x06" (empty zip)
+            
+            if (!zipMagic.equals(expectedMagic) && !zipMagic.equals(alternativeMagic)) {
+                console.warn('ZIPマジックナンバー不正:', zipMagic.toString('hex'));
+                // マジックナンバーが不正でも続行してみる
+            }
+
+            let zip;
+            try {
+                zip = new AdmZip(zipBuffer);
+            } catch (zipError) {
+                console.error('ZIP解析エラー:', zipError.message);
+                
+                // ファイルの終端をチェックして切り抜きを試みる
+                const endIndex = this.findZipEndRecord(zipBuffer);
+                if (endIndex > 0) {
+                    console.log(`ZIPファイルを修復して再試行: ${endIndex}バイトまで`);
+                    const truncatedBuffer = zipBuffer.slice(0, endIndex + 22); // ENDレコード含む
+                    zip = new AdmZip(truncatedBuffer);
+                } else {
+                    throw new Error(`ZIPファイルの解析に失敗: ${zipError.message}`);
+                }
+            }
+
+            const entries = zip.getEntries();
+            
+            if (entries.length === 0) {
+                throw new Error('ZIPファイルが空です');
+            }
+
+            console.log(`ZIPエントリ数: ${entries.length}`);
+
+            // XBRLファイルを探す（強化版）
+            const xbrlEntry = this.findXBRLEntry(entries);
 
             if (!xbrlEntry) {
+                // デバッグ用に全エントリを表示
+                console.log('ZIPエントリ一覧:');
+                entries.forEach(entry => {
+                    console.log(`- ${entry.entryName} (${entry.header.size} bytes)`);
+                });
                 throw new Error('XBRLファイルが見つかりません');
             }
 
+            console.log(`XBRLファイル発見: ${xbrlEntry.entryName}`);
+
             const xbrlContent = zip.readAsText(xbrlEntry);
+            
+            if (!xbrlContent || xbrlContent.length === 0) {
+                throw new Error('XBRLファイルの内容が空です');
+            }
+
             const parser = new XMLParser({
                 ignoreAttributes: false,
                 attributeNamePrefix: '@_',
-                allowBooleanAttributes: true
+                allowBooleanAttributes: true,
+                parseAttributeValue: false,
+                parseTrueNumberOnly: false
             });
 
             return parser.parse(xbrlContent);
         } catch (error) {
             throw new Error(`XBRL解析エラー: ${error.message}`);
         }
+    }
+
+    /**
+     * ZIPファイルのENDレコードを探す
+     * @param {Buffer} buffer - ZIPファイルバッファ
+     * @returns {number} ENDレコードの位置、見つからない場合は-1
+     */
+    findZipEndRecord(buffer) {
+        const endSignature = Buffer.from([0x50, 0x4b, 0x05, 0x06]); // "PK\x05\x06"
+        
+        // ファイルの終端から逆方向に検索
+        for (let i = buffer.length - 22; i >= 0; i--) {
+            if (buffer.slice(i, i + 4).equals(endSignature)) {
+                return i;
+            }
+        }
+        
+        return -1;
+    }
+
+    /**
+     * XBRLファイルエントリを探す（強化版）
+     * @param {Array} entries - ZIPエントリ一覧
+     * @returns {Object|null} XBRLファイルエントリまたはnull
+     */
+    findXBRLEntry(entries) {
+        // 優先度付きでXBRLファイルを探す
+        const searchPatterns = [
+            // 最優先: PublicDocフォルダ内のメインXBRLファイル
+            entry => entry.entryName.includes('PublicDoc/') && 
+                     entry.entryName.endsWith('.xbrl') && 
+                     !entry.entryName.includes('_lab') && 
+                     !entry.entryName.includes('_pre') &&
+                     !entry.entryName.includes('_def') &&
+                     !entry.entryName.includes('_cal'),
+            
+            // 第2優先: メインXBRLファイル（フォルダ無関係）
+            entry => entry.entryName.endsWith('.xbrl') && 
+                     !entry.entryName.includes('_lab') && 
+                     !entry.entryName.includes('_pre') &&
+                     !entry.entryName.includes('_def') &&
+                     !entry.entryName.includes('_cal'),
+            
+            // 第3優先: 任意の.xbrlファイル
+            entry => entry.entryName.endsWith('.xbrl')
+        ];
+
+        for (const pattern of searchPatterns) {
+            const found = entries.find(pattern);
+            if (found) {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -750,7 +851,14 @@ class EDINETClient {
                             }
                         };
                     } catch (parseError) {
-                        console.warn(`${year}年度 書類解析エラー:`, parseError.message);
+                        console.warn(`${year}年度 書類解析エラー (${targetReport.docID}):`, parseError.message);
+                        
+                        // ZIPエラーの場合は特別なログを出力
+                        if (parseError.message.includes('ADM-ZIP') || parseError.message.includes('Invalid or unsupported zip format')) {
+                            console.error(`ZIPファイル破損の可能性: ${targetReport.docDescription}`);
+                            console.error(`書類情報: docID=${targetReport.docID}, submitDate=${targetReport.submitDate}`);
+                        }
+                        
                         // 解析エラーの場合は次の書類を探す
                         continue;
                     }
@@ -761,6 +869,67 @@ class EDINETClient {
                 if (error.message.includes('認証エラー')) {
                     throw error;
                 }
+                continue;
+            }
+        }
+        
+        // 最後の手段として、より幅広い検索を実行
+        console.log(`${year}年度の標準検索でデータが見つからないため、拡張検索を実行します`);
+        
+        // 拡張検索日程を生成
+        const extendedDates = this.generateExtendedSearchDates(baseYear);
+        
+        for (const date of extendedDates) {
+            if (searchCount >= 20) { // 全体の上限を増やす
+                break;
+            }
+            
+            try {
+                searchCount++;
+                console.log(`拡張検索 (${searchCount}/20): ${date}`);
+                
+                await this.rateLimiter.throttle();
+                const documents = await this.getDocumentList(date);
+                
+                if (!documents || !documents.results) {
+                    continue;
+                }
+                
+                const reports = this.filterFinancialReports(documents);
+                const targetReport = reports.find(report => 
+                    report.edinetCode === edinetCode &&
+                    (report.formCode === '030000' || report.formCode === '043000')
+                );
+                
+                if (targetReport) {
+                    console.log(`拡張検索で${year}年度の書類発見: ${targetReport.docDescription}`);
+                    
+                    try {
+                        const xbrlData = await this.getXBRLDataSafely(targetReport.docID);
+                        const parsedData = await this.parseXBRL(xbrlData);
+                        const financialData = this.extractFinancialData(parsedData);
+                        
+                        return {
+                            ...financialData,
+                            metadata: {
+                                docID: targetReport.docID,
+                                filerName: targetReport.filerName,
+                                submitDate: targetReport.submitDate,
+                                docDescription: targetReport.docDescription,
+                                formCode: targetReport.formCode,
+                                foundDate: date,
+                                year: year,
+                                searchCount: searchCount,
+                                extendedSearch: true
+                            }
+                        };
+                    } catch (parseError) {
+                        console.warn(`拡張検索 - ${year}年度 解析エラー:`, parseError.message);
+                        continue;
+                    }
+                }
+            } catch (error) {
+                console.warn(`拡張検索 - ${year}年度 日付 ${date} エラー:`, error.message);
                 continue;
             }
         }
@@ -803,7 +972,37 @@ class EDINETClient {
     }
 
     /**
-     * 安全なXBRLデータ取得（タイムアウト付き）
+     * 拡張検索日付を生成
+     * @param {number} year - 対象年度
+     * @returns {Array<string>} 拡張検索日付配列
+     */
+    generateExtendedSearchDates(year) {
+        const dates = [];
+        const currentDate = new Date();
+        
+        // より幅広い日付範囲で検索
+        const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; // 月末日
+        const years = [year, year + 1, year + 2]; // 年度幅を広げる
+        
+        for (const searchYear of years) {
+            if (searchYear > currentDate.getFullYear()) continue;
+            
+            for (const month of months) {
+                const lastDay = new Date(searchYear, month, 0).getDate();
+                const dateStr = `${searchYear}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+                
+                const date = new Date(dateStr);
+                if (date <= currentDate) {
+                    dates.push(dateStr);
+                }
+            }
+        }
+        
+        return dates;
+    }
+
+    /**
+     * 安全なXBRLデータ取得（改善版）
      * @param {string} docID - 書類管理番号
      * @returns {Promise<Buffer>} XBRLファイルのZIPバイナリデータ
      */
@@ -821,10 +1020,11 @@ class EDINETClient {
                 params,
                 responseType: 'arraybuffer',
                 headers: {
-                    'User-Agent': 'financeanalysis-app/1.0'
+                    'User-Agent': 'financeanalysis-app/1.0',
+                    'Accept': 'application/zip, application/octet-stream, */*'
                 },
-                timeout: 30000, // 30秒でタイムアウト
-                maxContentLength: 50 * 1024 * 1024, // 50MB制限
+                timeout: 45000, // 45秒に延長
+                maxContentLength: 100 * 1024 * 1024, // 100MBに増大
                 validateStatus: (status) => status < 400
             });
 
@@ -839,12 +1039,28 @@ class EDINETClient {
                 throw new Error('空のXBRLファイルが返されました');
             }
 
+            // ファイルサイズが小さすぎる場合はエラーの可能性
+            if (response.data.length < 1024) {
+                console.warn(`ファイルサイズが小さい: ${response.data.length} bytes`);
+            }
+
             console.log(`XBRLデータ取得成功: ${(response.data.length / 1024 / 1024).toFixed(2)}MB`);
+            console.log(`Content-Type: ${response.headers['content-type'] || 'unknown'}`);
+            
             return response.data;
         } catch (error) {
             if (error.code === 'ECONNABORTED') {
-                throw new Error('XBRLダウンロードがタイムアウトしました（30秒）');
+                throw new Error('XBRLダウンロードがタイムアウトしました（45秒）');
             }
+            console.error(`XBRLデータ取得エラー詳細:`, {
+                docID: docID,
+                error: error.message,
+                response: error.response ? {
+                    status: error.response.status,
+                    statusText: error.response.statusText,
+                    headers: error.response.headers
+                } : null
+            });
             throw new Error(`XBRLデータ取得エラー: ${error.message}`);
         }
     }
