@@ -339,7 +339,18 @@ class EDINETClient {
                 entries.forEach(entry => {
                     console.log(`- ${entry.entryName} (${entry.header.size} bytes)`);
                 });
-                throw new Error('XBRLファイルが見つかりません');
+                
+                // XBRLファイルが見つからない場合、CSVファイルを探す
+                const csvEntry = this.findCSVEntry(entries);
+                if (csvEntry) {
+                    console.log(`CSVファイル発見: ${csvEntry.entryName}`);
+                    console.log('CSVファイルから財務データを抽出します');
+                    
+                    // CSVファイルから財務データを抽出
+                    return this.parseCSVData(zip, entries);
+                }
+                
+                throw new Error('XBRLファイルもCSVファイルも見つかりません');
             }
 
             console.log(`XBRLファイル発見: ${xbrlEntry.entryName}`);
@@ -421,7 +432,7 @@ class EDINETClient {
 
     /**
      * 財務データを抽出
-     * @param {Object} xbrlData - 解析されたXBRLデータ
+     * @param {Object} xbrlData - 解析されたXBRLデータ（またはCSVデータ）
      * @param {string} contextRef - コンテキスト参照
      * @returns {Object} 抽出された財務データ
      */
@@ -429,6 +440,11 @@ class EDINETClient {
         const contextRefDuration = 'CurrentYearDuration';
         
         try {
+            // CSVデータの場合
+            if (xbrlData.csvData) {
+                console.log('CSVデータを財務データ形式に変換中...');
+                return xbrlData.financialData;
+            }
             // 貸借対照表項目
             const balanceSheet = {
                 // 資産の部
@@ -1124,6 +1140,207 @@ class EDINETClient {
 
         // フォールバック: 最初に見つかった報告書
         return candidateReports[0];
+    }
+
+    /**
+     * CSVファイルエントリを探す
+     * @param {Array} entries - ZIPエントリ一覧
+     * @returns {Object|null} CSVファイルエントリまたはnull
+     */
+    findCSVEntry(entries) {
+        // 財務データのCSVファイルを探す（優先度順）
+        const searchPatterns = [
+            // 最優先: 有価証券報告書のCSVファイル
+            entry => entry.entryName.includes('jpcrp030000-asr-001') && entry.entryName.endsWith('.csv'),
+            
+            // 第2優先: 貸借対照表のCSVファイル
+            entry => entry.entryName.includes('jpaud-aai-cc-001') && entry.entryName.endsWith('.csv'),
+            
+            // 第3優先: 損益計算書のCSVファイル
+            entry => entry.entryName.includes('jpaud-aar-cn-001') && entry.entryName.endsWith('.csv'),
+            
+            // 第4優先: 任意のCSVファイル
+            entry => entry.entryName.endsWith('.csv')
+        ];
+
+        for (const pattern of searchPatterns) {
+            const found = entries.find(pattern);
+            if (found) {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * CSVデータから財務データを抽出
+     * @param {AdmZip} zip - ZIPファイル
+     * @param {Array} entries - ZIPエントリ一覧
+     * @returns {Object} 財務データ（XBRL形式に変換）
+     */
+    parseCSVData(zip, entries) {
+        try {
+            console.log('CSVデータから財務データを抽出中...');
+
+            // 財務データを格納するオブジェクト
+            const financialData = {
+                balanceSheet: {},
+                profitLoss: {},
+                cashFlow: {}
+            };
+
+            // 各CSVファイルを処理
+            entries.forEach(entry => {
+                if (entry.entryName.endsWith('.csv')) {
+                    console.log(`CSV処理中: ${entry.entryName}`);
+                    
+                    const csvContent = zip.readAsText(entry);
+                    const csvData = this.parseCSVContent(csvContent);
+                    
+                    // ファイル名から種別を判定して適切なデータを抽出
+                    if (entry.entryName.includes('jpcrp030000-asr-001')) {
+                        // 有価証券報告書 - 主要な財務データ
+                        this.extractMainFinancialData(csvData, financialData);
+                    } else if (entry.entryName.includes('jpaud-aai-cc-001')) {
+                        // 貸借対照表データ
+                        this.extractBalanceSheetData(csvData, financialData);
+                    } else if (entry.entryName.includes('jpaud-aar-cn-001')) {
+                        // 損益計算書データ  
+                        this.extractProfitLossData(csvData, financialData);
+                    }
+                }
+            });
+
+            console.log('CSV財務データ抽出完了');
+            
+            // XBRL形式に変換して返す
+            return {
+                csvData: true, // CSVデータであることを示すフラグ
+                financialData: financialData
+            };
+
+        } catch (error) {
+            throw new Error(`CSV解析エラー: ${error.message}`);
+        }
+    }
+
+    /**
+     * CSV文字列を解析してオブジェクトに変換
+     * @param {string} csvContent - CSV文字列
+     * @returns {Array} 解析されたCSVデータ
+     */
+    parseCSVContent(csvContent) {
+        const lines = csvContent.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line) {
+                const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                data.push(row);
+            }
+        }
+        
+        return data;
+    }
+
+    /**
+     * 主要財務データを抽出（有価証券報告書CSVから）
+     * @param {Array} csvData - CSVデータ
+     * @param {Object} financialData - 財務データオブジェクト
+     */
+    extractMainFinancialData(csvData, financialData) {
+        // 重要な財務指標を抽出
+        const keyItems = {
+            // 貸借対照表
+            '流動資産': 'currentAssets',
+            '固定資産': 'nonCurrentAssets', 
+            '資産合計': 'totalAssets',
+            '流動負債': 'currentLiabilities',
+            '固定負債': 'nonCurrentLiabilities',
+            '負債合計': 'totalLiabilities',
+            '純資産合計': 'netAssets',
+            '現金及び預金': 'cashAndDeposits',
+            
+            // 損益計算書
+            '売上高': 'netSales',
+            '売上原価': 'costOfSales',
+            '売上総利益': 'grossProfit',
+            '営業利益': 'operatingIncome',
+            '経常利益': 'ordinaryIncome',
+            '当期純利益': 'netIncome'
+        };
+
+        csvData.forEach(row => {
+            const itemName = row['項目名'] || row['element_name'] || row['name'];
+            const value = row['金額'] || row['value'] || row['amount'];
+            
+            if (itemName && value) {
+                const mappedKey = keyItems[itemName];
+                if (mappedKey) {
+                    const numValue = this.parseNumber(value);
+                    if (numValue !== null) {
+                        // 貸借対照表項目か損益計算書項目かを判定
+                        if (['currentAssets', 'nonCurrentAssets', 'totalAssets', 'currentLiabilities', 
+                             'nonCurrentLiabilities', 'totalLiabilities', 'netAssets', 'cashAndDeposits'].includes(mappedKey)) {
+                            financialData.balanceSheet[mappedKey] = numValue;
+                        } else {
+                            financialData.profitLoss[mappedKey] = numValue;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * 貸借対照表データを抽出
+     * @param {Array} csvData - CSVデータ
+     * @param {Object} financialData - 財務データオブジェクト
+     */
+    extractBalanceSheetData(csvData, financialData) {
+        // 貸借対照表の詳細データを抽出
+        csvData.forEach(row => {
+            const itemName = row['項目名'] || row['element_name'] || row['name'];
+            const value = row['金額'] || row['value'] || row['amount'];
+            
+            if (itemName && value) {
+                const numValue = this.parseNumber(value);
+                if (numValue !== null) {
+                    // 項目名を英語キーにマッピング（簡略化）
+                    const key = itemName.replace(/[^a-zA-Z0-9]/g, '');
+                    financialData.balanceSheet[key] = numValue;
+                }
+            }
+        });
+    }
+
+    /**
+     * 損益計算書データを抽出
+     * @param {Array} csvData - CSVデータ
+     * @param {Object} financialData - 財務データオブジェクト
+     */
+    extractProfitLossData(csvData, financialData) {
+        // 損益計算書の詳細データを抽出
+        csvData.forEach(row => {
+            const itemName = row['項目名'] || row['element_name'] || row['name'];
+            const value = row['金額'] || row['value'] || row['amount'];
+            
+            if (itemName && value) {
+                const numValue = this.parseNumber(value);
+                if (numValue !== null) {
+                    // 項目名を英語キーにマッピング（簡略化）
+                    const key = itemName.replace(/[^a-zA-Z0-9]/g, '');
+                    financialData.profitLoss[key] = numValue;
+                }
+            }
+        });
     }
 }
 
