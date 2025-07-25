@@ -829,7 +829,7 @@ class EDINETClient {
         console.log(`検索対象期間: ${searchDates.length}日分`);
         
         let searchCount = 0;
-        const maxSearches = 10; // 検索回数を制限してタイムアウトを防ぐ
+        const maxSearches = 25; // 検索回数を増加（より幅広い検索）
         
         for (const date of searchDates) {
             if (searchCount >= maxSearches) {
@@ -850,8 +850,17 @@ class EDINETClient {
                 }
                 
                 const reports = this.filterFinancialReports(documents);
+                console.log(`${date}: ${reports.length}件の財務報告書をチェック`);
                 
                 // 指定したEDINETコードの報告書を探す（XBRL対応書類を優先）
+                const edinetReports = reports.filter(r => r.edinetCode === edinetCode);
+                if (edinetReports.length > 0) {
+                    console.log(`${date}: ${edinetReports.length}件の対象企業報告書を発見`);
+                    edinetReports.forEach(r => {
+                        console.log(`  - ${r.docDescription} (form: ${r.formCode}, xbrl: ${r.xbrlFlag || 'unknown'})`);
+                    });
+                }
+                
                 const targetReport = this.findBestFinancialReport(reports, edinetCode);
                 
                 if (targetReport) {
@@ -962,7 +971,18 @@ class EDINETClient {
             }
         }
         
-        throw new Error(`${year}年度の財務データが見つかりませんでした（検索期間: ${searchCount}日分）`);
+        // 詳細なエラー情報を提供
+        const errorDetails = {
+            year: year,
+            edinetCode: edinetCode,
+            searchCount: searchCount,
+            maxSearches: 40, // 標準 + 拡張検索の合計
+            searchedDates: searchDates.slice(0, Math.min(searchCount, searchDates.length)),
+            suggestion: `${year}年度（${year}年4月〜${year + 1}年3月）の有価証券報告書は通常${year + 1}年6月頃に提出されます。`
+        };
+        
+        console.error('財務データ検索詳細:', errorDetails);
+        throw new Error(`${year}年度の財務データが見つかりませんでした（検索期間: ${searchCount}日分）。${errorDetails.suggestion}`);
     }
 
     /**
@@ -972,31 +992,45 @@ class EDINETClient {
      */
     generateRealisticSearchDates(year) {
         const dates = [];
+        const nextYear = year + 1;
+        const currentDate = new Date();
         
-        // 有価証券報告書の一般的な提出時期
-        const reportingDates = [
-            `${year + 1}-06-30`,  // 6月末（最も一般的）
-            `${year + 1}-06-29`,  // 6月末前
-            `${year + 1}-05-31`,  // 5月末
-            `${year + 1}-07-31`,  // 7月末
-            `${year + 1}-04-30`,  // 4月末
-            `${year + 1}-08-31`,  // 8月末
-            `${year}-12-31`,      // 年度末
-            `${year}-09-30`,      // 第2四半期
-            `${year}-06-30`,      // 第1四半期
-            `${year}-03-31`       // 年度始
+        // 有価証券報告書の一般的な提出時期（拡張版）
+        const reportingPeriods = [
+            // 最優先：6月提出（年度終了3ヶ月後）
+            { year: nextYear, months: [6], days: [30, 29, 28, 27, 26, 25] },
+            
+            // 高優先：5月、7月提出
+            { year: nextYear, months: [5, 7], days: [31, 30, 29, 28] },
+            
+            // 中優先：4月、8月、9月提出
+            { year: nextYear, months: [4, 8, 9], days: [30, 29, 28] },
+            
+            // 低優先：その他の時期
+            { year: year, months: [12, 9, 6, 3], days: [31, 30, 29] },
+            { year: nextYear, months: [3, 10, 11, 12], days: [31, 30, 29] }
         ];
         
-        // 現在日付より前の日付のみを追加
-        const currentDate = new Date();
-        reportingDates.forEach(dateStr => {
-            const date = new Date(dateStr);
-            if (date <= currentDate) {
-                dates.push(dateStr);
+        // 日付を生成
+        for (const period of reportingPeriods) {
+            for (const month of period.months) {
+                for (const day of period.days) {
+                    // 月の最大日数を考慮
+                    const maxDay = new Date(period.year, month, 0).getDate();
+                    if (day <= maxDay) {
+                        const dateStr = `${period.year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                        const date = new Date(dateStr);
+                        
+                        if (date <= currentDate && !dates.includes(dateStr)) {
+                            dates.push(dateStr);
+                        }
+                    }
+                }
             }
-        });
+        }
         
-        return dates;
+        // 日付を新しい順にソート（最近の提出分を優先）
+        return dates.sort((a, b) => new Date(b) - new Date(a));
     }
 
     /**
