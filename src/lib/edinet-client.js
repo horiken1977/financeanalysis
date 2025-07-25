@@ -399,9 +399,26 @@ class EDINETClient {
      * @returns {Object|null} XBRLファイルエントリまたはnull
      */
     findXBRLEntry(entries) {
-        // 優先度付きでXBRLファイルを探す
+        // EDINET API v2の正しい構造に基づくXBRLファイル検索
         const searchPatterns = [
-            // 最優先: PublicDocフォルダ内のメインXBRLファイル
+            // 最優先: XBRL/PublicDoc/内のメインインスタンス文書
+            entry => entry.entryName.startsWith('XBRL/PublicDoc/') && 
+                     entry.entryName.endsWith('.xbrl') && 
+                     !entry.entryName.includes('_lab') && 
+                     !entry.entryName.includes('_pre') &&
+                     !entry.entryName.includes('_def') &&
+                     !entry.entryName.includes('_cal') &&
+                     entry.entryName.includes('asr-001'), // 有価証券報告書
+            
+            // 第2優先: XBRL/PublicDoc/内の任意のメインXBRL
+            entry => entry.entryName.startsWith('XBRL/PublicDoc/') && 
+                     entry.entryName.endsWith('.xbrl') && 
+                     !entry.entryName.includes('_lab') && 
+                     !entry.entryName.includes('_pre') &&
+                     !entry.entryName.includes('_def') &&
+                     !entry.entryName.includes('_cal'),
+            
+            // 第3優先: PublicDocフォルダ内のメインXBRL
             entry => entry.entryName.includes('PublicDoc/') && 
                      entry.entryName.endsWith('.xbrl') && 
                      !entry.entryName.includes('_lab') && 
@@ -409,20 +426,21 @@ class EDINETClient {
                      !entry.entryName.includes('_def') &&
                      !entry.entryName.includes('_cal'),
             
-            // 第2優先: メインXBRLファイル（フォルダ無関係）
+            // 第4優先: 任意のメインXBRLファイル
             entry => entry.entryName.endsWith('.xbrl') && 
                      !entry.entryName.includes('_lab') && 
                      !entry.entryName.includes('_pre') &&
                      !entry.entryName.includes('_def') &&
                      !entry.entryName.includes('_cal'),
             
-            // 第3優先: 任意の.xbrlファイル
+            // 最終: 任意の.xbrlファイル
             entry => entry.entryName.endsWith('.xbrl')
         ];
 
         for (const pattern of searchPatterns) {
             const found = entries.find(pattern);
             if (found) {
+                console.log(`XBRLファイル発見: ${found.entryName} (${found.header.size} bytes)`);
                 return found;
             }
         }
@@ -1021,11 +1039,11 @@ class EDINETClient {
         
         const url = `${this.baseURL}/documents/${docID}`;
         
-        // 複数のtypeパラメータを試行
+        // 複数のtypeパラメータを試行（正しい優先順位）
         const tryParams = [
-            { type: 2, description: 'XBRL' },
-            { type: 5, description: 'XBRL (alternative)' },
-            { type: 1, description: 'ZIP (fallback)' }
+            { type: 1, description: 'XBRL ZIP (primary)' },
+            { type: 5, description: 'XBRL to CSV (alternative)' },
+            { type: 2, description: 'PDF (fallback)' }
         ];
 
         for (const paramSet of tryParams) {
@@ -1341,6 +1359,84 @@ class EDINETClient {
                 }
             }
         });
+    }
+
+    /**
+     * XBRLデータからコンテキスト情報を抽出
+     * @param {Object} xbrlData - XBRLデータ
+     * @returns {Array} コンテキスト配列
+     */
+    extractContexts(xbrlData) {
+        try {
+            const xbrl = xbrlData.xbrl || xbrlData;
+            const contexts = xbrl['xbrli:context'] || xbrl.context;
+            
+            if (!contexts) return [];
+            
+            return Array.isArray(contexts) ? contexts : [contexts];
+        } catch (error) {
+            console.warn('コンテキスト抽出エラー:', error.message);
+            return [];
+        }
+    }
+
+    /**
+     * 期間時点（Instant）コンテキストを見つける
+     * @param {Array} contexts - コンテキスト配列
+     * @returns {string|null} コンテキストID
+     */
+    findInstantContext(contexts) {
+        for (const context of contexts) {
+            const period = context['xbrli:period'] || context.period;
+            if (period && (period['xbrli:instant'] || period.instant)) {
+                return context['@_id'] || context.id;
+            }
+        }
+        return 'CurrentYearInstant'; // デフォルト
+    }
+
+    /**
+     * 期間（Duration）コンテキストを見つける
+     * @param {Array} contexts - コンテキスト配列  
+     * @returns {string|null} コンテキストID
+     */
+    findDurationContext(contexts) {
+        for (const context of contexts) {
+            const period = context['xbrli:period'] || context.period;
+            if (period && ((period['xbrli:startDate'] && period['xbrli:endDate']) || 
+                          (period.startDate && period.endDate))) {
+                return context['@_id'] || context.id;
+            }
+        }
+        return 'CurrentYearDuration'; // デフォルト
+    }
+
+    /**
+     * 抽出された財務データの概要を作成
+     * @param {Object} balanceSheet - 貸借対照表データ
+     * @param {Object} profitLoss - 損益計算書データ
+     * @param {Object} cashFlow - キャッシュフローデータ
+     * @returns {Object} 概要情報
+     */
+    summarizeExtractedData(balanceSheet, profitLoss, cashFlow) {
+        const countNonNull = (obj) => Object.values(obj).filter(v => v !== null).length;
+        const countTotal = (obj) => Object.keys(obj).length;
+        
+        const bsExtracted = countNonNull(balanceSheet);
+        const plExtracted = countNonNull(profitLoss);
+        const cfExtracted = countNonNull(cashFlow);
+        
+        const bsTotal = countTotal(balanceSheet);
+        const plTotal = countTotal(profitLoss);
+        const cfTotal = countTotal(cashFlow);
+        
+        return {
+            extractedFields: bsExtracted + plExtracted + cfExtracted,
+            totalFields: bsTotal + plTotal + cfTotal,
+            balanceSheetRatio: `${bsExtracted}/${bsTotal}`,
+            profitLossRatio: `${plExtracted}/${plTotal}`,
+            cashFlowRatio: `${cfExtracted}/${cfTotal}`
+        };
     }
 }
 
