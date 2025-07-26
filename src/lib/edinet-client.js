@@ -1727,33 +1727,111 @@ class EDINETClient {
     }
 
     /**
-     * 期間時点（Instant）コンテキストを見つける
+     * 期間時点（Instant）コンテキストを見つける - CurrentYear優先
      * @param {Array} contexts - コンテキスト配列
      * @returns {string|null} コンテキストID
      */
     findInstantContext(contexts) {
+        const instantContexts = [];
+        
+        // まずすべてのInstantコンテキストを収集
         for (const context of contexts) {
             const period = context['xbrli:period'] || context.period;
             if (period && (period['xbrli:instant'] || period.instant)) {
-                return context['@_id'] || context.id;
+                const contextId = context['@_id'] || context.id;
+                instantContexts.push(contextId);
             }
         }
+        
+        console.log(`利用可能なInstantコンテキスト: ${instantContexts.join(', ')}`);
+        
+        // CurrentYear系を優先的に選択
+        const currentYearPatterns = [
+            /CurrentYear.*Instant/i,
+            /当期.*時点/i,
+            /当事業年度.*時点/i
+        ];
+        
+        for (const pattern of currentYearPatterns) {
+            const found = instantContexts.find(ctx => pattern.test(ctx));
+            if (found) {
+                console.log(`✅ CurrentYear Instantコンテキストを選択: ${found}`);
+                return found;
+            }
+        }
+        
+        // Prior Year系は避けて、その他を選択
+        const nonPriorContexts = instantContexts.filter(ctx => 
+            !(/Prior.*Year/i.test(ctx) || /前期/i.test(ctx) || /前事業年度/i.test(ctx))
+        );
+        
+        if (nonPriorContexts.length > 0) {
+            console.log(`✅ Non-Prior Instantコンテキストを選択: ${nonPriorContexts[0]}`);
+            return nonPriorContexts[0];
+        }
+        
+        // 最後の手段として最初に見つかったものを使用
+        if (instantContexts.length > 0) {
+            console.log(`⚠️ Prior Instantコンテキストを使用: ${instantContexts[0]}`);
+            return instantContexts[0];
+        }
+        
         return 'CurrentYearInstant'; // デフォルト
     }
 
     /**
-     * 期間（Duration）コンテキストを見つける
+     * 期間（Duration）コンテキストを見つける - CurrentYear優先
      * @param {Array} contexts - コンテキスト配列  
      * @returns {string|null} コンテキストID
      */
     findDurationContext(contexts) {
+        const durationContexts = [];
+        
+        // まずすべてのDurationコンテキストを収集
         for (const context of contexts) {
             const period = context['xbrli:period'] || context.period;
             if (period && ((period['xbrli:startDate'] && period['xbrli:endDate']) || 
                           (period.startDate && period.endDate))) {
-                return context['@_id'] || context.id;
+                const contextId = context['@_id'] || context.id;
+                durationContexts.push(contextId);
             }
         }
+        
+        console.log(`利用可能なDurationコンテキスト: ${durationContexts.join(', ')}`);
+        
+        // CurrentYear系を優先的に選択
+        const currentYearPatterns = [
+            /CurrentYear.*Duration/i,
+            /当期.*期間/i,
+            /当事業年度.*期間/i,
+            // 一般的なパターンも追加
+            /^(?!.*Prior).*Duration.*$/i  // Priorを含まないDuration
+        ];
+        
+        for (const pattern of currentYearPatterns) {
+            const found = durationContexts.find(ctx => pattern.test(ctx));
+            if (found) {
+                console.log(`✅ CurrentYear Durationコンテキストを選択: ${found}`);
+                return found;
+            }
+        }
+        
+        // Prior Year系は避けて、その他を選択
+        const nonPriorContexts = durationContexts.filter(ctx => 
+            !(/Prior.*Year/i.test(ctx) || /前期/i.test(ctx) || /前事業年度/i.test(ctx) || /Prior.*Duration/i.test(ctx))
+        );
+        
+        if (nonPriorContexts.length > 0) {
+            console.log(`✅ Non-Prior Durationコンテキストを選択: ${nonPriorContexts[0]}`);
+            return nonPriorContexts[0];
+        }
+        
+        // 最後の手段として最初に見つかったものを使用
+        if (durationContexts.length > 0) {
+            console.log(`⚠️ Prior Durationコンテキストを使用: ${durationContexts[0]}`);
+            return durationContexts[0];
+        }
+        
         return 'CurrentYearDuration'; // デフォルト
     }
 
