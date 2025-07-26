@@ -1045,24 +1045,29 @@ class EDINETClient {
         const dates = [];
         const currentDate = new Date();
         
-        // より広範囲の日付を生成：過去6ヶ月を重点的に
-        for (let i = 0; i < 180; i += 7) { // 週ごとに過去6ヶ月
+        // 過去のデータのみを対象とする（未来日付を除外）
+        for (let i = 1; i < 180; i += 7) { // 1日前から週ごとに過去6ヶ月
             const date = new Date(currentDate);
             date.setDate(date.getDate() - i);
             dates.push(date.toISOString().split('T')[0]);
         }
         
-        // 重要な月末日を追加
-        for (let month = 0; month < 12; month++) {
+        // 重要な月末日を追加（過去のみ）
+        for (let month = 1; month < 12; month++) { // 前月から開始
             const date = new Date(currentDate);
             date.setMonth(date.getMonth() - month);
             const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-            const monthEndStr = monthEnd.toISOString().split('T')[0];
-            if (!dates.includes(monthEndStr)) {
-                dates.push(monthEndStr);
+            
+            // 未来日付は除外
+            if (monthEnd <= currentDate) {
+                const monthEndStr = monthEnd.toISOString().split('T')[0];
+                if (!dates.includes(monthEndStr)) {
+                    dates.push(monthEndStr);
+                }
             }
         }
         
+        // 過去から現在へソート（新しい日付ほど企業データが多い可能性）
         return dates.sort((a, b) => new Date(b) - new Date(a));
     }
 
