@@ -1075,6 +1075,23 @@ class EDINETClient {
     findMatchingCompanies(reports, companyName) {
         const companyNameLower = companyName.toLowerCase();
         
+        // デバッグ: トヨタ検索時は企業名をサンプル表示
+        if (companyNameLower.includes('トヨタ') || companyNameLower.includes('toyota')) {
+            console.log(`デバッグ: トヨタ検索 - ${reports.length}件の書類から検索`);
+            const sampleCompanies = reports.slice(0, 20).map(r => r.filerName).filter(Boolean);
+            console.log('企業名サンプル:', sampleCompanies.slice(0, 10));
+            
+            // トヨタ関連の企業名を明示的に検索
+            const toyotaCompanies = reports.filter(r => {
+                const filer = (r.filerName || '').toLowerCase();
+                const submitter = (r.submitterName || '').toLowerCase();
+                return filer.includes('トヨタ') || filer.includes('toyota') || 
+                       submitter.includes('トヨタ') || submitter.includes('toyota');
+            });
+            console.log(`トヨタ関連企業発見数: ${toyotaCompanies.length}`);
+            toyotaCompanies.forEach(c => console.log(`- ${c.filerName}`));
+        }
+        
         return reports.filter(report => {
             const filerName = (report.filerName || '').trim();
             const submitterName = (report.submitterName || '').trim();
