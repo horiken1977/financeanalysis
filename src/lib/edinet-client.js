@@ -455,39 +455,163 @@ class EDINETClient {
      * @returns {Object} 抽出された財務データ
      */
     extractFinancialData(xbrlData, contextRef = 'CurrentYearInstant') {
-        const contextRefDuration = 'CurrentYearDuration';
-        
         try {
             // CSVデータの場合
             if (xbrlData.csvData) {
                 console.log('CSVデータを財務データ形式に変換中...');
                 return xbrlData.financialData;
             }
-            // 貸借対照表項目
+
+            // XBRLデータ構造のデバッグ
+            console.log('XBRLデータ構造の分析開始...');
+            const xbrl = xbrlData.xbrl || xbrlData;
+            
+            // すべての要素名を取得してログ出力（デバッグ用）
+            const allKeys = Object.keys(xbrl);
+            console.log(`XBRLデータに含まれる要素数: ${allKeys.length}`);
+            
+            // 財務データ関連の要素を探す
+            const financialKeys = allKeys.filter(key => 
+                key.includes('Assets') || 
+                key.includes('Liabilities') || 
+                key.includes('NetAssets') || 
+                key.includes('Sales') || 
+                key.includes('Income') ||
+                key.includes('資産') ||
+                key.includes('負債') ||
+                key.includes('純資産') ||
+                key.includes('売上')
+            );
+            console.log(`財務関連要素数: ${financialKeys.length}`);
+            if (financialKeys.length > 0) {
+                console.log('財務関連要素サンプル:', financialKeys.slice(0, 10));
+            }
+
+            // コンテキスト情報を動的に取得
+            const contexts = this.extractContexts(xbrlData);
+            const instantContext = this.findInstantContext(contexts);
+            const durationContext = this.findDurationContext(contexts);
+            
+            console.log(`使用コンテキスト: Instant=${instantContext}, Duration=${durationContext}`);
+
+            // 複数の要素名パターンを試行する関数
+            const findValueWithFallback = (elementPatterns, context) => {
+                for (const pattern of elementPatterns) {
+                    const value = this.findValue(xbrlData, pattern, context);
+                    if (value !== null) {
+                        console.log(`✅ 値を発見: ${pattern} = ${value}`);
+                        return value;
+                    }
+                }
+                return null;
+            };
+
+            // 貸借対照表項目（複数パターン対応）
+            console.log('貸借対照表データの抽出開始...');
             const balanceSheet = {
                 // 資産の部
-                currentAssets: this.findValue(xbrlData, 'jppfs_cor:CurrentAssets', contextRef),
-                nonCurrentAssets: this.findValue(xbrlData, 'jppfs_cor:NoncurrentAssets', contextRef),
-                totalAssets: this.findValue(xbrlData, 'jppfs_cor:Assets', contextRef),
+                currentAssets: findValueWithFallback([
+                    'jppfs_cor:CurrentAssets',
+                    'jpcrp_cor:CurrentAssets',
+                    'jpcrp030000-asr:CurrentAssets',
+                    'jpcrp-cor:CurrentAssets',
+                    'CurrentAssets'
+                ], instantContext),
+                
+                nonCurrentAssets: findValueWithFallback([
+                    'jppfs_cor:NoncurrentAssets',
+                    'jpcrp_cor:NoncurrentAssets',
+                    'jpcrp030000-asr:NoncurrentAssets',
+                    'jpcrp-cor:NoncurrentAssets',
+                    'NoncurrentAssets'
+                ], instantContext),
+                
+                totalAssets: findValueWithFallback([
+                    'jppfs_cor:Assets',
+                    'jpcrp_cor:Assets',
+                    'jpcrp030000-asr:Assets',
+                    'jpcrp-cor:Assets',
+                    'Assets'
+                ], instantContext),
                 
                 // 負債の部
-                currentLiabilities: this.findValue(xbrlData, 'jppfs_cor:CurrentLiabilities', contextRef),
-                nonCurrentLiabilities: this.findValue(xbrlData, 'jppfs_cor:NoncurrentLiabilities', contextRef),
-                totalLiabilities: this.findValue(xbrlData, 'jppfs_cor:Liabilities', contextRef),
+                currentLiabilities: findValueWithFallback([
+                    'jppfs_cor:CurrentLiabilities',
+                    'jpcrp_cor:CurrentLiabilities',
+                    'jpcrp030000-asr:CurrentLiabilities',
+                    'jpcrp-cor:CurrentLiabilities',
+                    'CurrentLiabilities'
+                ], instantContext),
+                
+                nonCurrentLiabilities: findValueWithFallback([
+                    'jppfs_cor:NoncurrentLiabilities',
+                    'jpcrp_cor:NoncurrentLiabilities',
+                    'jpcrp030000-asr:NoncurrentLiabilities',
+                    'jpcrp-cor:NoncurrentLiabilities',
+                    'NoncurrentLiabilities'
+                ], instantContext),
+                
+                totalLiabilities: findValueWithFallback([
+                    'jppfs_cor:Liabilities',
+                    'jpcrp_cor:Liabilities',
+                    'jpcrp030000-asr:Liabilities',
+                    'jpcrp-cor:Liabilities',
+                    'Liabilities'
+                ], instantContext),
                 
                 // 純資産の部
-                netAssets: this.findValue(xbrlData, 'jppfs_cor:NetAssets', contextRef),
+                netAssets: findValueWithFallback([
+                    'jppfs_cor:NetAssets',
+                    'jpcrp_cor:NetAssets',
+                    'jpcrp030000-asr:NetAssets',
+                    'jpcrp-cor:NetAssets',
+                    'NetAssets'
+                ], instantContext),
                 
                 // 主要な資産項目
-                cashAndDeposits: this.findValue(xbrlData, 'jppfs_cor:CashAndDeposits', contextRef),
-                tradeAccounts: this.findValue(xbrlData, 'jppfs_cor:NotesAndAccountsReceivableTrade', contextRef),
-                inventory: this.findValue(xbrlData, 'jppfs_cor:Inventories', contextRef),
-                propertyPlantEquipment: this.findValue(xbrlData, 'jppfs_cor:PropertyPlantAndEquipment', contextRef)
+                cashAndDeposits: findValueWithFallback([
+                    'jppfs_cor:CashAndDeposits',
+                    'jpcrp_cor:CashAndDeposits',
+                    'jpcrp030000-asr:CashAndDeposits',
+                    'jpcrp-cor:CashAndDeposits',
+                    'CashAndDeposits'
+                ], instantContext),
+                
+                tradeAccounts: findValueWithFallback([
+                    'jppfs_cor:NotesAndAccountsReceivableTrade',
+                    'jpcrp_cor:NotesAndAccountsReceivableTrade',
+                    'jpcrp030000-asr:NotesAndAccountsReceivableTrade',
+                    'jpcrp-cor:TradeAndOtherReceivables',
+                    'NotesAndAccountsReceivableTrade'
+                ], instantContext),
+                
+                inventory: findValueWithFallback([
+                    'jppfs_cor:Inventories',
+                    'jpcrp_cor:Inventories',
+                    'jpcrp030000-asr:Inventories',
+                    'jpcrp-cor:Inventories',
+                    'Inventories'
+                ], instantContext),
+                
+                propertyPlantEquipment: findValueWithFallback([
+                    'jppfs_cor:PropertyPlantAndEquipment',
+                    'jpcrp_cor:PropertyPlantAndEquipment',
+                    'jpcrp030000-asr:PropertyPlantAndEquipment',
+                    'jpcrp-cor:PropertyPlantAndEquipment',
+                    'PropertyPlantAndEquipment'
+                ], instantContext)
             };
 
             // 損益計算書項目
+            console.log('損益計算書データの抽出開始...');
             const profitLoss = {
-                netSales: this.findValue(xbrlData, 'jppfs_cor:NetSales', contextRefDuration),
+                netSales: findValueWithFallback([
+                    'jppfs_cor:NetSales',
+                    'jpcrp_cor:NetSales',
+                    'jpcrp030000-asr:NetSales',
+                    'jpcrp-cor:RevenueIFRS',
+                    'NetSales'
+                ], durationContext),
                 costOfSales: this.findValue(xbrlData, 'jppfs_cor:CostOfSales', contextRefDuration),
                 grossProfit: this.findValue(xbrlData, 'jppfs_cor:GrossProfit', contextRefDuration),
                 operatingIncome: this.findValue(xbrlData, 'jppfs_cor:OperatingIncome', contextRefDuration),
@@ -507,10 +631,26 @@ class EDINETClient {
                 financingCashFlow: this.findValue(xbrlData, 'jppfs_cor:NetCashProvidedByUsedInFinancingActivities', contextRefDuration)
             };
 
+            // 取得できたデータの概要をログ出力
+            const summary = this.summarizeExtractedData(balanceSheet, profitLoss, cashFlow);
+            console.log('財務データ抽出概要:', summary);
+
+            // データが全く取得できていない場合の詳細デバッグ
+            if (summary.extractedFields === 0) {
+                console.warn('⚠️ 財務データが1つも抽出できませんでした');
+                this.debugXBRLStructure(xbrlData);
+            }
+
             return {
                 balanceSheet,
                 profitLoss,
-                cashFlow
+                cashFlow,
+                metadata: {
+                    instantContext,
+                    durationContext,
+                    extractedFields: summary.extractedFields,
+                    totalFields: summary.totalFields
+                }
             };
         } catch (error) {
             throw new Error(`財務データ抽出エラー: ${error.message}`);
@@ -527,15 +667,77 @@ class EDINETClient {
     findValue(xbrlData, elementName, contextRef) {
         try {
             const xbrl = xbrlData.xbrl || xbrlData;
-            const element = xbrl[elementName];
             
-            if (!element) return null;
+            // 直接的な要素名検索
+            let element = xbrl[elementName];
             
+            // 名前空間なしでも検索を試みる
+            if (!element) {
+                const simpleElementName = elementName.split(':').pop();
+                const possibleKeys = Object.keys(xbrl).filter(key => 
+                    key.endsWith(':' + simpleElementName) || key === simpleElementName
+                );
+                if (possibleKeys.length > 0) {
+                    element = xbrl[possibleKeys[0]];
+                    if (element) {
+                        console.log(`要素発見（代替キー）: ${possibleKeys[0]} for ${elementName}`);
+                    }
+                }
+            }
+            
+            if (!element) {
+                return null;
+            }
+            
+            // 配列の場合
             if (Array.isArray(element)) {
-                const found = element.find(item => item['@_contextRef'] === contextRef);
-                return found ? this.parseNumber(found['#text'] || found) : null;
-            } else if (element['@_contextRef'] === contextRef) {
-                return this.parseNumber(element['#text'] || element);
+                // 完全一致を優先
+                let found = element.find(item => item['@_contextRef'] === contextRef);
+                
+                // 部分一致も試す
+                if (!found && contextRef) {
+                    found = element.find(item => {
+                        const itemContext = item['@_contextRef'];
+                        return itemContext && (
+                            itemContext.includes('CurrentYear') ||
+                            itemContext.includes('Current') ||
+                            itemContext.includes(contextRef)
+                        );
+                    });
+                }
+                
+                // それでも見つからない場合、最初の要素を返す
+                if (!found && element.length > 0) {
+                    found = element[0];
+                    console.log(`フォールバック: ${elementName}の最初の要素を使用`);
+                }
+                
+                if (found) {
+                    const value = this.parseNumber(found['#text'] || found);
+                    if (value !== null) {
+                        console.log(`値取得成功: ${elementName} = ${value} (context: ${found['@_contextRef']})`);
+                    }
+                    return value;
+                }
+            } 
+            // オブジェクトの場合
+            else if (typeof element === 'object') {
+                // コンテキスト一致確認
+                if (element['@_contextRef']) {
+                    const value = this.parseNumber(element['#text'] || element);
+                    if (value !== null) {
+                        console.log(`値取得成功: ${elementName} = ${value} (context: ${element['@_contextRef']})`);
+                    }
+                    return value;
+                }
+            }
+            // 単純な値の場合
+            else {
+                const value = this.parseNumber(element);
+                if (value !== null) {
+                    console.log(`値取得成功: ${elementName} = ${value} (単純値)`);
+                }
+                return value;
             }
             
             return null;
@@ -1471,6 +1673,60 @@ class EDINETClient {
             profitLossRatio: `${plExtracted}/${plTotal}`,
             cashFlowRatio: `${cfExtracted}/${cfTotal}`
         };
+    }
+
+    /**
+     * XBRLデータ構造をデバッグ出力
+     * @param {Object} xbrlData - XBRLデータ
+     */
+    debugXBRLStructure(xbrlData) {
+        console.log('=== XBRL構造デバッグ開始 ===');
+        const xbrl = xbrlData.xbrl || xbrlData;
+        
+        // 名前空間の確認
+        const namespaces = Object.keys(xbrl).filter(key => key.startsWith('@_xmlns'));
+        console.log('名前空間:', namespaces);
+        
+        // 財務項目の要素名パターンを分析
+        const patterns = {
+            'Assets系': [],
+            'Liabilities系': [],
+            'Sales/Revenue系': [],
+            'Income系': [],
+            '日本語要素': []
+        };
+        
+        Object.keys(xbrl).forEach(key => {
+            if (key.toLowerCase().includes('asset')) patterns['Assets系'].push(key);
+            if (key.toLowerCase().includes('liabilit')) patterns['Liabilities系'].push(key);
+            if (key.toLowerCase().includes('sale') || key.toLowerCase().includes('revenue')) patterns['Sales/Revenue系'].push(key);
+            if (key.toLowerCase().includes('income')) patterns['Income系'].push(key);
+            if (/[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(key)) patterns['日本語要素'].push(key);
+        });
+        
+        Object.entries(patterns).forEach(([category, items]) => {
+            if (items.length > 0) {
+                console.log(`\n${category}: ${items.length}件`);
+                console.log(items.slice(0, 5).join(', ') + (items.length > 5 ? '...' : ''));
+            }
+        });
+        
+        // コンテキスト参照を持つ要素をサンプル表示
+        const elementsWithContext = Object.entries(xbrl).filter(([key, value]) => {
+            return value && typeof value === 'object' && 
+                   (value['@_contextRef'] || (Array.isArray(value) && value[0] && value[0]['@_contextRef']));
+        });
+        
+        console.log(`\nコンテキスト参照を持つ要素数: ${elementsWithContext.length}`);
+        if (elementsWithContext.length > 0) {
+            console.log('サンプル要素:');
+            elementsWithContext.slice(0, 3).forEach(([key, value]) => {
+                const sampleValue = Array.isArray(value) ? value[0] : value;
+                console.log(`  ${key}: contextRef=${sampleValue['@_contextRef']}, value=${sampleValue['#text'] || sampleValue}`);
+            });
+        }
+        
+        console.log('=== XBRL構造デバッグ終了 ===');
     }
 }
 
