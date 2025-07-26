@@ -361,15 +361,65 @@ class EDINETClient {
                 throw new Error('XBRLファイルの内容が空です');
             }
 
+            // XBRLファイルサイズをチェック
+            console.log(`XBRLファイルサイズ: ${xbrlContent.length}文字`);
+            console.log(`XBRLファイル先頭200文字: ${xbrlContent.substring(0, 200)}`);
+            
+            // XML宣言の確認
+            if (!xbrlContent.startsWith('<?xml')) {
+                console.warn('⚠️ XML宣言が見つかりません');
+            }
+            
+            // XBRL要素の存在確認
+            if (!xbrlContent.includes('<xbrl') && !xbrlContent.includes('<jp')) {
+                console.warn('⚠️ XBRL要素が見つかりません');
+            }
+
             const parser = new XMLParser({
                 ignoreAttributes: false,
                 attributeNamePrefix: '@_',
                 allowBooleanAttributes: true,
                 parseAttributeValue: false,
-                parseTrueNumberOnly: false
+                parseTrueNumberOnly: false,
+                trimValues: true,
+                parseTagValue: false,
+                preserveOrder: false,
+                alwaysCreateTextNode: false
             });
 
-            return parser.parse(xbrlContent);
+            const result = parser.parse(xbrlContent);
+            console.log('XBRL解析完了');
+            
+            // 解析結果の検証
+            const resultKeys = Object.keys(result);
+            console.log(`解析結果のトップレベルキー: ${resultKeys.join(', ')}`);
+            
+            // XBRL要素の検索
+            let xbrlElement = null;
+            if (result.xbrl) {
+                xbrlElement = result.xbrl;
+                console.log('xbrl要素を発見');
+            } else {
+                // 他の可能性のあるルート要素を探す
+                for (const key of resultKeys) {
+                    if (key.includes('xbrl') || key.startsWith('jp')) {
+                        xbrlElement = result[key];
+                        console.log(`XBRL要素を発見: ${key}`);
+                        break;
+                    }
+                }
+            }
+            
+            if (xbrlElement) {
+                const xbrlKeys = Object.keys(xbrlElement);
+                console.log(`XBRL要素内のキー数: ${xbrlKeys.length}`);
+                console.log(`XBRL要素内の主要キー (最初の10個): ${xbrlKeys.slice(0, 10).join(', ')}`);
+                
+                return { xbrl: xbrlElement };
+            } else {
+                console.warn('⚠️ XBRL要素が見つかりません。結果をそのまま返します。');
+                return result;
+            }
         } catch (error) {
             throw new Error(`XBRL解析エラー: ${error.message}`);
         }
@@ -612,23 +662,83 @@ class EDINETClient {
                     'jpcrp-cor:RevenueIFRS',
                     'NetSales'
                 ], durationContext),
-                costOfSales: this.findValue(xbrlData, 'jppfs_cor:CostOfSales', contextRefDuration),
-                grossProfit: this.findValue(xbrlData, 'jppfs_cor:GrossProfit', contextRefDuration),
-                operatingIncome: this.findValue(xbrlData, 'jppfs_cor:OperatingIncome', contextRefDuration),
-                ordinaryIncome: this.findValue(xbrlData, 'jppfs_cor:OrdinaryIncome', contextRefDuration),
-                netIncome: this.findValue(xbrlData, 'jppfs_cor:ProfitLoss', contextRefDuration),
+                costOfSales: findValueWithFallback([
+                    'jppfs_cor:CostOfSales',
+                    'jpcrp_cor:CostOfSales',
+                    'jpcrp030000-asr:CostOfSales',
+                    'CostOfSales'
+                ], durationContext),
+                
+                grossProfit: findValueWithFallback([
+                    'jppfs_cor:GrossProfit',
+                    'jpcrp_cor:GrossProfit',
+                    'jpcrp030000-asr:GrossProfit',
+                    'GrossProfit'
+                ], durationContext),
+                
+                operatingIncome: findValueWithFallback([
+                    'jppfs_cor:OperatingIncome',
+                    'jpcrp_cor:OperatingIncome',
+                    'jpcrp030000-asr:OperatingIncome',
+                    'jpcrp-cor:ProfitLossFromOperatingActivities',
+                    'OperatingIncome'
+                ], durationContext),
+                
+                ordinaryIncome: findValueWithFallback([
+                    'jppfs_cor:OrdinaryIncome',
+                    'jpcrp_cor:ProfitLossBeforeTax',
+                    'jpcrp030000-asr:OrdinaryIncome',
+                    'OrdinaryIncome'
+                ], durationContext),
+                
+                netIncome: findValueWithFallback([
+                    'jppfs_cor:ProfitLoss',
+                    'jpcrp_cor:ProfitLoss',
+                    'jpcrp030000-asr:ProfitLoss',
+                    'jpcrp-cor:NetIncome',
+                    'NetIncome'
+                ], durationContext),
                 
                 // 費用項目
-                sellingGeneralAdminExpenses: this.findValue(xbrlData, 'jppfs_cor:SellingGeneralAndAdministrativeExpenses', contextRefDuration),
-                nonOperatingIncome: this.findValue(xbrlData, 'jppfs_cor:NonOperatingIncome', contextRefDuration),
-                nonOperatingExpenses: this.findValue(xbrlData, 'jppfs_cor:NonOperatingExpenses', contextRefDuration)
+                sellingGeneralAdminExpenses: findValueWithFallback([
+                    'jppfs_cor:SellingGeneralAndAdministrativeExpenses',
+                    'jpcrp_cor:SellingGeneralAndAdministrativeExpenses',
+                    'jpcrp030000-asr:SellingGeneralAndAdministrativeExpenses'
+                ], durationContext),
+                
+                nonOperatingIncome: findValueWithFallback([
+                    'jppfs_cor:NonOperatingIncome',
+                    'jpcrp_cor:NonOperatingIncome',
+                    'jpcrp030000-asr:NonOperatingIncome'
+                ], durationContext),
+                
+                nonOperatingExpenses: findValueWithFallback([
+                    'jppfs_cor:NonOperatingExpenses',
+                    'jpcrp_cor:NonOperatingExpenses',
+                    'jpcrp030000-asr:NonOperatingExpenses'
+                ], durationContext)
             };
 
             // キャッシュフロー項目（可能な場合）
+            console.log('キャッシュフローデータの抽出開始...');
             const cashFlow = {
-                operatingCashFlow: this.findValue(xbrlData, 'jppfs_cor:NetCashProvidedByUsedInOperatingActivities', contextRefDuration),
-                investingCashFlow: this.findValue(xbrlData, 'jppfs_cor:NetCashProvidedByUsedInInvestmentActivities', contextRefDuration),
-                financingCashFlow: this.findValue(xbrlData, 'jppfs_cor:NetCashProvidedByUsedInFinancingActivities', contextRefDuration)
+                operatingCashFlow: findValueWithFallback([
+                    'jppfs_cor:NetCashProvidedByUsedInOperatingActivities',
+                    'jpcrp_cor:CashFlowsFromUsedInOperatingActivities',
+                    'jpcrp030000-asr:NetCashProvidedByUsedInOperatingActivities'
+                ], durationContext),
+                
+                investingCashFlow: findValueWithFallback([
+                    'jppfs_cor:NetCashProvidedByUsedInInvestmentActivities',
+                    'jpcrp_cor:CashFlowsFromUsedInInvestmentActivities',
+                    'jpcrp030000-asr:NetCashProvidedByUsedInInvestmentActivities'
+                ], durationContext),
+                
+                financingCashFlow: findValueWithFallback([
+                    'jppfs_cor:NetCashProvidedByUsedInFinancingActivities',
+                    'jpcrp_cor:CashFlowsFromUsedInFinancingActivities',
+                    'jpcrp030000-asr:NetCashProvidedByUsedInFinancingActivities'
+                ], durationContext)
             };
 
             // 取得できたデータの概要をログ出力
